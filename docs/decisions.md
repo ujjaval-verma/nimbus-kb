@@ -21,18 +21,19 @@ The knowledge base is 10 markdown files: 10,112 bytes, 1,775 words, about 3,000 
 
 **Revisit when:** the corpus grows past roughly 100k tokens, or changes often enough that sending all of it gets expensive. Then: hybrid keyword and embedding search with rank fusion, and the same citation checks.
 
-## 2. A small, fast model by default, chosen by evals
+## 2. A mid-tier model at low effort, not a frontier model
 
 **Brief:** a dropdown of Claude, OpenAI and Gemini; model choice is open.
 
-**What I built:** the default is Claude Haiku 4.5, a small model, not a frontier one. Model details (description, price, context window, fallback order) live in `src/llm/models.json`.
+**What I built:** the default is Claude Sonnet 5.5 at low reasoning effort, with Claude Haiku 4.5 as the automatic backup. Neither is a frontier model (Anthropic's Opus and Fable tiers). Model details (description, price, context window, effort, fallback order) live in `src/llm/models.json`.
 
 **Why:**
 - With the whole corpus in front of it, the task is careful reading of 3,000 tokens: compare tiers, cite, refuse when the answer is missing, flag documents that disagree. That does not need frontier reasoning.
-- Latency matters more than depth for the people this is for. A sales executive on a live customer call wants the answer in a second or two.
-- The choice is tested, not assumed: `npm run eval` runs the six sample questions and the edge cases against the chosen model. If the small model fails the disagreement or refusal cases, the default moves up a tier and the eval report shows why.
+- Latency matters more than depth for the people this is for. A sales executive on a live customer call wants the answer in a second or two, so Sonnet runs at low effort.
+- Sonnet rather than the smaller Haiku: one tier up buys a margin on the cases that are easiest to get subtly wrong (the documents that disagree, the complete cross-product answer), and keeps the eval to a single run on a single default. Haiku stays in the fallback chain, so a Sonnet outage still gets a composed answer.
+- The choice is checked, not assumed: `npm run eval` runs the six sample questions and the edge cases against the default model and records the answers in `evals/results/latest.md`.
 
-**Revisit when:** evals show the small model missing cases, or the corpus gets large and messy enough that reasoning across it gets hard.
+**Revisit when:** evals show misses at low effort (raise effort first), or the corpus gets large and messy enough that reasoning across it gets hard.
 
 ## 3. One provider implemented and tested; the others are placeholders behind an adapter
 
