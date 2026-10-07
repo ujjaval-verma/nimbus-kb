@@ -1,0 +1,14 @@
+# Assessment brief and local planning artifacts (never committed)
+CodeShip-Technical-Assessment.pdf
+docs/superpowers/
+
+# OS / editor
+.DS_Store
+
+# Node / build
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+.env*
+!.env.example
