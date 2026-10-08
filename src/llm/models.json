@@ -1,0 +1,38 @@
+{
+  "pricesCheckedOn": "2026-10-07",
+  "fallbackOrder": ["claude-sonnet", "claude-haiku"],
+  "contextWarning": { "amber": 0.75, "red": 0.9 },
+  "models": [
+    {
+      "id": "claude-haiku", "provider": "anthropic", "providerLabel": "Claude (Anthropic)",
+      "model": "claude-haiku-4-5", "name": "Claude Haiku 4.5",
+      "description": "Fastest and cheapest. The backup when Sonnet is unavailable.",
+      "contextWindow": 200000,
+      "pricePerMTok": { "input": 1, "output": 5, "cacheRead": 0.1, "cacheWrite": 1.25 },
+      "status": "implemented"
+    },
+    {
+      "id": "claude-sonnet", "provider": "anthropic", "providerLabel": "Claude (Anthropic)",
+      "model": "claude-sonnet-5-5", "name": "Claude Sonnet 5.5",
+      "description": "The default. Careful, cited answers across all four products.",
+      "contextWindow": 1000000,
+      "pricePerMTok": { "input": 2, "output": 10, "cacheRead": 0.2, "cacheWrite": 2.5 },
+      "effort": "low",
+      "status": "implemented"
+    },
+    {
+      "id": "openai", "provider": "openai", "providerLabel": "OpenAI",
+      "model": "gpt-6-luna", "name": "GPT-6 Luna",
+      "description": "Placeholder. Listed for comparison; not implemented in this build.",
+      "contextWindow": 1050000, "pricePerMTok": { "input": 0.1, "output": 0.5 },
+      "status": "placeholder"
+    },
+    {
+      "id": "gemini", "provider": "google", "providerLabel": "Gemini (Google)",
+      "model": "gemini-3.8-flash", "name": "Gemini 3.8 Flash",
+      "description": "Placeholder. Listed for comparison; not implemented in this build.",
+      "contextWindow": 1048576, "pricePerMTok": { "input": 0.75, "output": 3.75 },
+      "status": "placeholder"
+    }
+  ]
+}
