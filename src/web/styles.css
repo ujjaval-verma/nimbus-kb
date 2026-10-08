@@ -108,7 +108,7 @@ button.primary:hover:not(:disabled), button.utility:hover:not(:disabled) { backg
 .usage .num { font-size: 13px; text-transform: none; letter-spacing: 0; color: var(--muted); }
 
 /* Prose */
-.prose { overflow-wrap: anywhere; color: var(--text-body); }
+.prose { overflow-wrap: break-word; color: var(--text-body); }
 .prose > :first-child { margin-top: 0; }
 .prose h1, .prose h2, .prose h3, .prose h4 { font-family: var(--font-display); font-weight: 500; color: var(--text); line-height: 1.3; }
 .prose h1, .prose h2 { font-size: 19px; }
