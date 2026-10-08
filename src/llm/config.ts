@@ -3,7 +3,7 @@ import raw from "./models.json";
 export type ProviderId = "anthropic" | "openai" | "google";
 export interface ModelConfig {
   id: string; provider: ProviderId; providerLabel: string; model: string; name: string;
-  description: string; contextWindow: number; outputTokenLimit?: number;
+  label: string; description: string; contextWindow: number; outputTokenLimit?: number;
   pricePerMTok: { input: number; output: number; cacheRead?: number; cacheWrite?: number };
   effort?: "low" | "medium" | "high";
   status: "implemented" | "placeholder";

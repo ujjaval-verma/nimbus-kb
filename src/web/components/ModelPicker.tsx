@@ -3,7 +3,7 @@ import type { ModelInfo } from "../api";
 import { fmtContext, fmtPrice } from "../format";
 
 function suffix(m: ModelInfo): string {
-  if (m.status === "placeholder") return "";   // the description already says so
+  if (m.status === "placeholder") return "";   // the label already says so
   if (!m.available) return " (not configured here)";
   if (!m.tested) return " (untested)";
   return "";
@@ -17,7 +17,7 @@ export function ModelPicker({ models, value, onChange }: { models: ModelInfo[]; 
       <label htmlFor={id} className="sr-only">Model</label>
       <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
         {models.map((m) => (
-          <option key={m.id} value={m.id}>{`${m.providerLabel}: ${m.name} · ${m.description}${suffix(m)}`}</option>
+          <option key={m.id} value={m.id}>{`${m.providerLabel}: ${m.name} · ${m.label}${suffix(m)}`}</option>
         ))}
       </select>
       {sel && (

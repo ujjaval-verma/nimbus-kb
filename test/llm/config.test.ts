@@ -19,10 +19,18 @@ describe("models.json", () => {
     expect(getModel("gemini-flash-lite")).toEqual({
       id: "gemini-flash-lite", provider: "google", providerLabel: "Google",
       model: "gemini-3.5-flash-lite", name: "Gemini 3.5 Flash-Lite",
+      label: "First backup.",
       description: "Google's fast, low-cost model. The cross-provider backup.",
       contextWindow: 1_048_576, outputTokenLimit: 65_536,
       pricePerMTok: { input: 0.3, output: 2.5, cacheRead: 0.03 }, status: "implemented" });
     expect(getModel("gemini")).toBeUndefined();   // the old placeholder id is gone
+  });
+  it("gives every model a short dropdown label", () => {
+    for (const m of CONFIG.models) {
+      expect(m.label.length, m.id).toBeGreaterThan(0);
+      expect(m.label.length, m.id).toBeLessThanOrEqual(20);
+    }
+    expect(CONFIG.models.map((m) => m.label)).toEqual(["The default.", "First backup.", "Last backup.", "Not implemented."]);
   });
   it("falls back across providers: Sonnet, then Gemini, then Haiku", () => {
     expect(CONFIG.fallbackOrder).toEqual(["claude-sonnet", "gemini-flash-lite", "claude-haiku"]);
