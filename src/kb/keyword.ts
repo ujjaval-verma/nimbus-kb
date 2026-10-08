@@ -1,10 +1,19 @@
 import type { Product, Section } from "./sections";
 
-const STOP = new Set(("a an and are as at be by can do does for from has have how i in is it its me my of on or our " +
+const SUFFIXES = ["ing", "ion", "ed", "es", "s"];
+// Light suffix stemming. Tokens with a dot or digit (versions, 403, p1) are left alone.
+export function stem(t: string): string {
+  if (/[.\d]/.test(t)) return t;
+  for (const suf of SUFFIXES) if (t.endsWith(suf) && t.length - suf.length >= 4) return t.slice(0, -suf.length);
+  return t;
+}
+
+const STOP_WORDS = ("a an and are as at be by can do does for from has have how i in is it its me my of on or our " +
   "please should tell that the their them there they this to us we what when where which who why will with you your " +
-  "about any some support supports supported nimbus nimbusstack product products").split(" "));
+  "about any some support supports supported nimbus nimbusstack product products").split(" ");
+const STOP = new Set(STOP_WORDS.map(stem));
 const PRODUCTS: Record<string, Product> = { relay: "relay", vault: "vault", pulse: "pulse", ledger: "ledger" };
-const SYNONYMS: string[][] = [
+const RAW_SYNONYMS: string[][] = [
   ["sso", "saml", "federated", "sign-in", "signin", "login", "oidc", "openid", "identity"],
   ["price", "pricing", "cost", "tier", "tiers", "plan", "seat"],
   ["sla", "response", "priority", "p1", "p2", "urgent"],
@@ -13,6 +22,7 @@ const SYNONYMS: string[][] = [
   ["release", "releases", "new", "feature", "features", "changelog", "version"],
   ["integrate", "integration", "integrations", "connector"],
 ];
+const SYNONYMS = RAW_SYNONYMS.map((g) => g.map(stem));
 
 function normalise(text: string): string {
   return text.toLowerCase()
@@ -21,7 +31,7 @@ function normalise(text: string): string {
     .replace(/sign[\s-]in/g, " sign-in ");
 }
 export function tokenize(text: string): string[] {
-  return normalise(text).split(/[^a-z0-9.-]+/).map((t) => t.replace(/^[.-]+|[.-]+$/g, "").replace(/^v(\d)/, "$1")).filter(Boolean);
+  return normalise(text).split(/[^a-z0-9.-]+/).map((t) => t.replace(/^[.-]+|[.-]+$/g, "").replace(/^v(\d)/, "$1")).filter(Boolean).map(stem);
 }
 
 export function searchSections(query: string, sections: Section[], limit = 5): Section[] {

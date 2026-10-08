@@ -5,8 +5,8 @@ export function extractCitations(text: string, validIds: Set<string>): { citedId
   const cited: string[] = [];
   let invalid = 0;
   for (const m of text.matchAll(GROUP)) {
-    const parts = m[1].split(",").map((p) => p.trim());
-    if (!parts.every((p) => REF.test(p))) continue;   // plain bracketed words like [Pro]
+    const parts = m[1].split(",").map((p) => p.trim()).filter(Boolean);
+    if (parts.length === 0 || !parts.every((p) => REF.test(p))) continue;   // plain bracketed words like [Pro]
     for (const p of parts) {
       if (!validIds.has(p)) invalid++;
       else if (!cited.includes(p)) cited.push(p);

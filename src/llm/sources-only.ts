@@ -15,7 +15,7 @@ export function sourcesOnlyEvents(query: string, notices: Notice[], sections: Se
     type: "done", answeredBy: "sources-only", usage: ZERO_USAGE, costUsd: 0,
     passages: passages.map(toPassage), invalidRefCount: 0, uncited: false, contextTokens: 0, notices: [...notices, ...extra],
   });
-  if (hits.length === 0) return [{ type: "delta", text: NOT_COVERED }, done([], [])];
+  if (hits.length === 0) return [{ type: "delta", text: NOT_COVERED }, done([], [SOURCES_ONLY_NOTICE])];
   const lines = hits.map((s) => `- **${s.headingPath}**: ${excerpt(s.text)} [${s.id}]\n`);
   return [...lines.map((text): ChatEvent => ({ type: "delta", text })), done(hits, [SOURCES_ONLY_NOTICE])];
 }

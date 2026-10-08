@@ -20,3 +20,13 @@ it("answers the exact not-covered line when nothing matches (E2)", () => {
   expect(evs.filter((e) => e.type === "delta").map((e) => (e as { text: string }).text).join("")).toBe(NOT_COVERED);
   expect(evs.at(-1)).toMatchObject({ type: "done", passages: [] });
 });
+
+it("always carries the sources-only notice, keeping notices passed in", () => {
+  const passed = { kind: "fallback" as const, text: "X failed" };
+  for (const q of ["Vault pricing", "Does Relay support GraphQL?"]) {
+    const done = sourcesOnlyEvents(q, [passed]).at(-1)!;
+    if (done.type !== "done") throw new Error("expected done");
+    expect(done.notices).toContainEqual(passed);
+    expect(done.notices.some((n) => /not a checked answer/.test(n.text))).toBe(true);
+  }
+});

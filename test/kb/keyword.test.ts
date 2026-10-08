@@ -21,4 +21,13 @@ describe("searchSections", () => {
     expect(ids("Does Relay support GraphQL?")).toEqual([]);
     expect(ids("tell me about nimbus")).toEqual([]);
   });
+  it("stems so encryption matches encrypted/encrypt", () => {
+    const r = ids("What encryption does Vault use?");
+    expect(r.some((id) => id.startsWith("vault.md#") || id.startsWith("security-overview.md#"))).toBe(true);
+  });
+  it("returns [] for empty, punctuation-only and stopword-only queries", () => {
+    expect(ids("")).toEqual([]);
+    expect(ids("?!... --")).toEqual([]);
+    expect(ids("what is the")).toEqual([]);
+  });
 });

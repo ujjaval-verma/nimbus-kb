@@ -17,3 +17,7 @@ it("ignores markdown links and plain bracketed words (Review Focus 4)", () => {
   const r = extractCitations("The [Pro] tier, see [docs](https://example.com/a.md#b) and [vault.md#pricing].", ids);
   expect(r).toEqual({ citedIds: ["vault.md#pricing"], invalidRefCount: 0 });
 });
+
+it("drops empty parts in a group", () => {
+  expect(extractCitations("a [vault.md#pricing ,] b", ids)).toEqual({ citedIds: ["vault.md#pricing"], invalidRefCount: 0 });
+});
