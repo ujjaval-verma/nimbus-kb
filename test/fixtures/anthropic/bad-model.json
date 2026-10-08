@@ -1,0 +1,19 @@
+{
+  "provider": "anthropic",
+  "name": "bad-model",
+  "synthetic": false,
+  "recordedOn": "2026-10-08",
+  "note": "Free call: a model id that does not exist.",
+  "request": {
+    "method": "POST",
+    "url": "https://api.anthropic.com/v1/messages",
+    "model": "nimbus-kb-no-such-model",
+    "promptVersion": "2026-10-07.2",
+    "question": "What is the P1 response time for Vault Pro?"
+  },
+  "response": {
+    "status": 404,
+    "contentType": "application/json",
+    "body": "{\"type\":\"error\",\"error\":{\"type\":\"not_found_error\",\"message\":\"model: nimbus-kb-no-such-model\"},\"request_id\":\"req_011Cfp1bCPcWACnuwqfxWAr9\"}"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "provider": "anthropic",
+  "name": "auth-invalid-key",
+  "synthetic": false,
+  "recordedOn": "2026-10-08",
+  "note": "Free call: a deliberately invalid key.",
+  "request": {
+    "method": "POST",
+    "url": "https://api.anthropic.com/v1/messages",
+    "model": "claude-sonnet-5-5",
+    "promptVersion": "2026-10-07.2",
+    "question": "What is the P1 response time for Vault Pro?"
+  },
+  "response": {
+    "status": 401,
+    "contentType": "application/json",
+    "body": "{\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"invalid x-api-key\"},\"request_id\":\"req_011Cfp1bBtLpEjCAxTWtohmX\"}"
+  }
+}

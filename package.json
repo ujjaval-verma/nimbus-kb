@@ -15,6 +15,7 @@
     "test": "vitest run",
     "check": "npm run typecheck && npm run lint && npm run test && npm run build && wrangler deploy --dry-run",
     "deploy": "npm run check && wrangler deploy",
+    "record:fixtures": "tsx scripts/record-fixtures.ts",
     "gen:corpus": "tsx scripts/gen-corpus.ts",
     "eval": "tsx evals/run.ts",
     "cf-typegen": "wrangler types"

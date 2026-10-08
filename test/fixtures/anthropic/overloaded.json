@@ -1,0 +1,9 @@
+{
+  "provider": "anthropic",
+  "name": "overloaded",
+  "synthetic": true,
+  "recordedOn": "2026-10-07",
+  "note": "Synthetic. Imitates a 529 overloaded_error, shape from the Anthropic API errors docs. Cannot be provoked on demand.",
+  "request": { "method": "POST", "url": "https://api.anthropic.com/v1/messages", "model": "claude-sonnet-5-5", "promptVersion": "n/a", "question": "What is the P1 response time for Vault Pro?" },
+  "response": { "status": 529, "contentType": "application/json", "body": "{\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}" }
+}

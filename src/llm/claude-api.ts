@@ -1,0 +1,43 @@
+// Claude through the Anthropic API. Runs on Cloudflare Workers and Node.
+// Recorded once against the live API (scripts/record-fixtures.ts); the tests replay those fixtures offline.
+import Anthropic from "@anthropic-ai/sdk";
+import { MAX_OUTPUT_TOKENS } from "./context";
+import { type Adapter, type AdapterChunk, ProviderError } from "./types";
+
+export function mapAnthropicError(err: unknown): ProviderError {
+  const status = (err as { status?: unknown })?.status;
+  const msg = err instanceof Error ? err.message : String(err);
+  if (typeof status !== "number") return new ProviderError("unavailable", msg);
+  if (status === 429) return new ProviderError("rate_limit", msg);
+  if (status === 401 || status === 403) return new ProviderError("auth", msg);
+  // An empty prepaid balance comes back as a 400 invalid_request_error, not a 402.
+  if (status === 402 || (status === 400 && /credit balance/i.test(msg))) return new ProviderError("quota", msg);
+  if (status >= 500) return new ProviderError("unavailable", msg);
+  return new ProviderError("bad_request", msg);
+}
+
+export function createClaudeApiAdapter(opts: { apiKey: string; fetch?: typeof fetch; maxRetries?: number }): Adapter {
+  // No SDK retries (the SDK retries twice by default): the fallback chain is the retry, and a retry would only delay it.
+  const client = new Anthropic({ apiKey: opts.apiKey, maxRetries: opts.maxRetries ?? 0, ...(opts.fetch ? { fetch: opts.fetch } : {}) });
+  return {
+    name: "claude-api", tested: true,
+    async *stream(req): AsyncIterable<AdapterChunk> {
+      try {
+        const stream = client.messages.stream(
+          { model: req.model.model, max_tokens: req.maxOutputTokens ?? MAX_OUTPUT_TOKENS, system: req.system, messages: req.messages,
+            ...(req.model.effort ? { output_config: { effort: req.model.effort } } : {}) },
+          { signal: req.signal });
+        for await (const e of stream) {
+          if (req.signal.aborted) throw new ProviderError("unavailable", "aborted");
+          if (e.type === "content_block_delta" && e.delta.type === "text_delta") yield { type: "delta", text: e.delta.text };
+        }
+        if (req.signal.aborted) throw new ProviderError("unavailable", "aborted");
+        const u = (await stream.finalMessage()).usage;
+        yield { type: "usage", usage: { input: u.input_tokens ?? 0, output: u.output_tokens ?? 0,
+          cacheRead: u.cache_read_input_tokens ?? 0, cacheWrite: u.cache_creation_input_tokens ?? 0 } };
+      } catch (err) {
+        throw err instanceof ProviderError ? err : mapAnthropicError(err);
+      }
+    },
+  };
+}

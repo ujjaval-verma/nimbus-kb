@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { serve } from "@hono/node-server";
+import { createClaudeApiAdapter } from "../llm/claude-api";
 import { createClaudeSubAdapter } from "../llm/claude-sub";
 import { CONFIG } from "../llm/config";
 import type { AdapterRegistry } from "../llm/types";
@@ -8,8 +9,9 @@ import { wrapperFromEnv } from "./dev-fault";
 
 if (existsSync(".env")) process.loadEnvFile(".env");
 
-const registry: AdapterRegistry = {};   // Task 10 adds claude-api, Task 11 gemini
-if (process.env.CLAUDE_SUBSCRIPTION !== "0") registry.anthropic = createClaudeSubAdapter();
+const registry: AdapterRegistry = {};   // Task 11 adds gemini
+if (process.env.ANTHROPIC_API_KEY) registry.anthropic = createClaudeApiAdapter({ apiKey: process.env.ANTHROPIC_API_KEY });
+else if (process.env.CLAUDE_SUBSCRIPTION !== "0") registry.anthropic = createClaudeSubAdapter();
 const port = Number(process.env.PORT ?? 8787);
 const app = createApp({
   registry,
