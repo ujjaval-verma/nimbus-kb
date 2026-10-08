@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { getModel } from "../../src/llm/config";
 import { estimateTokens } from "../../src/llm/context";
 import { runChain } from "../../src/llm/fallback";
-import type { ChatEvent } from "../../src/llm/types";
+import { SOURCES_ONLY_NOTICE } from "../../src/llm/notices";
+import type { Adapter, AdapterChunk, AdapterRequest, ChatEvent } from "../../src/llm/types";
 import { fakeAdapter } from "../helpers/fake-adapter";
 
 const haiku = getModel("claude-haiku")!;
@@ -106,5 +107,57 @@ describe("runChain", () => {
     const evs2 = await run([{ model: sonnet, adapter: roomy }], { messages });
     expect(roomy.lastReq!.messages).toHaveLength(3);
     expect((evs2.at(-1) as Extract<ChatEvent, { type: "done" }>).notices).toEqual([]);
+  });
+
+  it("stopping consumption aborts the link and closes the adapter", async () => {
+    let finished = false;
+    let req: AdapterRequest | undefined;
+    const adapter: Adapter = {
+      name: "w", tested: true,
+      async *stream(r: AdapterRequest): AsyncIterable<AdapterChunk> {
+        req = r;
+        try { yield { type: "delta", text: "a" }; yield { type: "delta", text: "b" }; } finally { finished = true; }
+      },
+    };
+    const gen = runChain({ links: [{ model: haiku, adapter }], skipped: [], system: "sys", messages: [{ role: "user", content: "q" }],
+      query: "q", signal: new AbortController().signal });
+    for await (const e of gen) { if (e.type === "delta") break; }
+    await new Promise((r) => setTimeout(r, 0));
+    expect(req!.signal.aborted).toBe(true);
+    expect(finished).toBe(true);
+  });
+
+  it("the first-token deadline is not extended by usage chunks", async () => {
+    const slowUsage: Adapter = {
+      name: "u", tested: true,
+      async *stream(): AsyncIterable<AdapterChunk> {
+        for (let i = 0; i < 20; i++) {
+          await new Promise((r) => setTimeout(r, 15));
+          yield { type: "usage", usage: { input: 1, output: 0, cacheRead: 0, cacheWrite: 0 } };
+        }
+      },
+    };
+    const evs = await run([{ model: haiku, adapter: slowUsage }, { model: sonnet, adapter: fakeAdapter({ chunks: ["ok"] }) }], { firstTokenTimeoutMs: 40 });
+    expect(evs.at(-1)).toMatchObject({ answeredBy: "claude-sonnet" });
+  });
+
+  it("an external abort mid-stream ends without done and aborts the link", async () => {
+    const ac = new AbortController();
+    const a = fakeAdapter({ chunks: ["a", "b", "c"] });
+    const evs: ChatEvent[] = [];
+    for await (const e of runChain({ links: [{ model: haiku, adapter: a }], skipped: [], system: "sys", messages: [{ role: "user", content: "q" }],
+      query: "q", signal: ac.signal })) {
+      evs.push(e);
+      if (e.type === "delta") ac.abort();
+    }
+    expect(evs.some((e) => e.type === "done")).toBe(false);
+    expect(a.lastReq!.signal.aborted).toBe(true);
+  });
+
+  it("puts the sources-only notice after the failure notices", async () => {
+    const evs = await run([{ model: haiku, adapter: fakeAdapter({ failWith: "auth" }) }]);
+    const done = evs.at(-1) as Extract<ChatEvent, { type: "done" }>;
+    expect(done.notices.at(-1)).toEqual(SOURCES_ONLY_NOTICE);
+    expect(done.notices[0].text).toContain("Claude Haiku 4.5");
   });
 });

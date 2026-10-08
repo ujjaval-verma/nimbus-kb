@@ -31,3 +31,12 @@ it("the whole knowledge base stays a small share of every implemented model's wi
   const smallest = Math.min(...CONFIG.models.filter((m) => m.status === "implemented").map((m) => m.contextWindow));
   expect(systemTokens / smallest, "The knowledge base has outgrown whole-corpus prompting. See docs/decisions.md section 1.").toBeLessThan(0.25);
 });
+
+it("drops a leading assistant message after a trim so history starts on a user turn", () => {
+  const msgs = [u("a".repeat(300)), a("b"), u("c"), a("d"), u("e")];
+  // budget fits the last three turns plus the assistant before them is cut by the user-start rule
+  const r = fitToWindow(msgs, 4);
+  expect(r.messages[0].role).toBe("user");
+  expect(r.messages).toEqual([u("c"), a("d"), u("e")]);
+  expect(r.dropped).toBe(2);
+});

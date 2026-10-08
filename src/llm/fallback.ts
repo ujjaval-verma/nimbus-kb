@@ -14,11 +14,13 @@ export interface RunChainOptions {
   query: string; signal: AbortSignal; firstTokenTimeoutMs?: number; sections?: Section[];
 }
 
-async function nextWithTimeout(it: AsyncIterator<AdapterChunk>, ms: number | null): Promise<IteratorResult<AdapterChunk>> {
-  if (ms === null) return it.next();
+// `deadline` is an absolute time (ms since epoch) fixed when the link starts, so non-text chunks cannot stretch it.
+async function nextWithTimeout(it: AsyncIterator<AdapterChunk>, deadline: number | null, totalMs: number): Promise<IteratorResult<AdapterChunk>> {
+  if (deadline === null) return it.next();
+  const ms = Math.max(0, deadline - Date.now());
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new ProviderError("unavailable", `no first token within ${ms} ms`)), ms);
+    timer = setTimeout(() => reject(new ProviderError("unavailable", `no first token within ${totalMs} ms`)), ms);
   });
   try { return await Promise.race([it.next(), timeout]); } finally { if (timer !== undefined) clearTimeout(timer); }
 }
@@ -41,10 +43,12 @@ export async function* runChain(o: RunChainOptions): AsyncGenerator<ChatEvent> {
     const onAbort = () => linkAc.abort();
     o.signal.addEventListener("abort", onAbort, { once: true });
     let it: AsyncIterator<AdapterChunk> | undefined;
+    const deadline = Date.now() + firstMs;
     try {
       it = adapter.stream({ model, system: o.system, messages: fit.messages, signal: linkAc.signal })[Symbol.asyncIterator]();
       for (;;) {
-        const r = await nextWithTimeout(it, streamed ? null : firstMs);
+        const r = await nextWithTimeout(it, streamed ? null : deadline, firstMs);
+        if (o.signal.aborted) return;
         if (r.done) break;
         if (r.value.type === "delta") { streamed = true; text += r.value.text; yield { type: "delta", text: r.value.text }; }
         else usage = r.value.usage;
@@ -59,8 +63,6 @@ export async function* runChain(o: RunChainOptions): AsyncGenerator<ChatEvent> {
       };
       return;
     } catch (err) {
-      linkAc.abort();
-      void it?.return?.(undefined)?.catch(() => {});
       if (o.signal.aborted) return;
       const kind = err instanceof ProviderError ? err.kind : "unavailable";
       // Raw provider errors go to server logs only; the client gets the plain-language notice.
@@ -68,6 +70,9 @@ export async function* runChain(o: RunChainOptions): AsyncGenerator<ChatEvent> {
       if (streamed) yield { type: "reset", failedModelId: model.id, kind };
       notices.push(noticeFor(model.name, kind));
     } finally {
+      // Runs on success, failure, and when the consumer stops iterating: never leave the provider call running.
+      linkAc.abort();
+      void it?.return?.(undefined)?.catch(() => {});
       o.signal.removeEventListener("abort", onAbort);
     }
   }

@@ -8,6 +8,8 @@ it("parses specs", () => {
   expect(parseFaultInject("claude-haiku:midstream")).toEqual({ modelId: "claude-haiku", kind: "midstream" });
   expect(parseFaultInject("")).toBeNull();
   expect(parseFaultInject("claude-haiku:nonsense")).toBeNull();
+  expect(parseFaultInject("a:quota:extra")).toBeNull();
+  expect(parseFaultInject(" claude-haiku : quota ")).toEqual({ modelId: "claude-haiku", kind: "quota" });
 });
 
 it("midstream yields a partial delta then throws unavailable", async () => {

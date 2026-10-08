@@ -4,7 +4,9 @@ export type FaultKind = ErrorKind | "midstream";
 const KINDS: FaultKind[] = ["rate_limit", "quota", "auth", "unavailable", "bad_request", "midstream"];
 
 export function parseFaultInject(spec: string | undefined): { modelId: string; kind: FaultKind } | null {
-  const [modelId, kind] = (spec ?? "").split(":");
+  const parts = (spec ?? "").split(":").map((x) => x.trim());
+  if (parts.length !== 2) return null;
+  const [modelId, kind] = parts;
   return modelId && KINDS.includes(kind as FaultKind) ? { modelId, kind: kind as FaultKind } : null;
 }
 

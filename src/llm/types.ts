@@ -25,6 +25,7 @@ export function toPassage(s: Section): Passage {
   return { id: s.id, file: s.file, headingPath: s.headingPath, docDate: s.docDate, text: s.text };
 }
 
+// Each usage chunk carries cumulative totals for the attempt (the chain overwrites, it does not sum).
 export type AdapterChunk = { type: "delta"; text: string } | { type: "usage"; usage: Usage };
 export interface AdapterRequest { model: ModelConfig; system: string; messages: ChatMessage[]; signal: AbortSignal;
     maxOutputTokens?: number }   // reply cap; API adapters default to MAX_OUTPUT_TOKENS (the public quota lowers it, Task 13)
