@@ -50,8 +50,12 @@ export function createApp(deps: AppDeps = {}): Hono {
     // A page on another site can rebind its hostname to 127.0.0.1 and call the local server "same-origin".
     // The Host header still carries the attacker's hostname, so the Node entry only accepts its own.
     // (@hono/node-server builds the request URL from the Host header; fetch Requests hide `host` from headers.)
-    if (deps.allowedHosts && !deps.allowedHosts.includes(new URL(c.req.url).host)) return c.text("Forbidden", 403);
-    await next();
+    // Check the URL host and, when present, the Host header too (an absolute-form request line can disagree with it).
+    const hostHeader = c.req.raw.headers.get("host");
+    const hostOk = !deps.allowedHosts || (deps.allowedHosts.includes(new URL(c.req.url).host)
+      && (hostHeader === null || deps.allowedHosts.includes(hostHeader)));
+    if (hostOk) await next();
+    else c.res = c.text("Forbidden", 403);
     for (const [k, v] of Object.entries(SECURITY_HEADERS)) c.res.headers.set(k, v);
   });
 
@@ -99,7 +103,8 @@ export function createApp(deps: AppDeps = {}): Hono {
       try {
         for await (const ev of runChain({ links, skipped, system: SYSTEM, messages, query, signal: ac.signal,
           firstTokenTimeoutMs: deps.firstTokenTimeoutMs })) {
-          if (stream.aborted || ac.signal.aborted) break;   // client gone: stop iterating so runChain cancels the provider call
+          // Backstop: onAbort already aborts the chain; this also stops writing if a late event slips through.
+          if (stream.aborted || ac.signal.aborted) break;
           await stream.writeSSE({ event: ev.type, data: JSON.stringify(ev) });
         }
       } catch (err) {

@@ -28,3 +28,17 @@ it("public/_headers serves the same headers on static assets", () => {
   expect(file.startsWith("/*\n")).toBe(true);
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) expect(file).toContain(`  ${k}: ${v}\n`);
 });
+
+it("the 403 for a refused host also carries the security headers", async () => {
+  const res = await createApp({ allowedHosts: ["127.0.0.1:8787"] }).request("http://evil.example/api/health");
+  expect(res.status).toBe(403);
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) expect(res.headers.get(k)).toBe(v);
+});
+
+it("a Host header that disagrees with an allowed URL host is refused", async () => {
+  const app = createApp({ allowedHosts: ["127.0.0.1:8787"] });
+  const res = await app.request("http://127.0.0.1:8787/api/health", { headers: { host: "evil.example" } });
+  expect(res.status).toBe(403);
+  const ok = await app.request("http://127.0.0.1:8787/api/health", { headers: { host: "127.0.0.1:8787" } });
+  expect(ok.status).toBe(200);
+});
