@@ -2,7 +2,7 @@
 :root {
   --bg: #ffffff; --text: #020817; --text-body: rgba(2, 8, 23, 0.78); --muted: #64748b; --faint: #64748b;
   --surface: #f1f5f9; --panel: rgba(241, 245, 249, 0.6); --border: #e2e8f0; --control-border: #64748b;
-  --accent: #f97316; --accent-text: #c2410c; --accent-strong: #c2410c; --accent-soft: rgba(249, 115, 22, 0.1);
+  --accent: #f97316; --accent-text: #c2410c; --accent-strong: #c2410c; --accent-hover: #9a3412; --accent-soft: rgba(249, 115, 22, 0.1);
   --warn: #c2410c; --warn-soft: rgba(249, 115, 22, 0.1); --danger: #b91c1c; --danger-soft: rgba(220, 38, 38, 0.08);
   --grid-line: rgba(2, 8, 23, 0.04);
   --radius-sm: 6px; --radius: 8px; --radius-md: 12px; --radius-lg: 16px; --radius-pill: 9999px;
@@ -37,7 +37,7 @@ button {
 button:hover:not(:disabled) { border-color: var(--accent-text); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 button.primary, button.utility { background: var(--accent-strong); border-color: var(--accent-strong); color: #ffffff; font-weight: 500; font-size: 14px; }
-button.primary:hover:not(:disabled), button.utility:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); }
+button.primary:hover:not(:disabled), button.utility:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
 :focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .mono { font-family: var(--mono); font-size: 12px; }
