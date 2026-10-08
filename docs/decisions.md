@@ -31,7 +31,7 @@ The knowledge base is 10 markdown files: 10,112 bytes, 1,775 words, about 3,000 
 - With the whole corpus in front of it, the task is careful reading of 3,000 tokens: compare tiers, cite, refuse when the answer is missing, flag documents that disagree. That does not need frontier reasoning.
 - Latency matters more than depth for the people this is for. A sales executive on a live customer call wants the answer in a second or two, so Sonnet runs at low effort.
 - Sonnet rather than the smaller Haiku: one tier up buys a margin on the cases that are easiest to get subtly wrong (the documents that disagree, the complete cross-product answer), and keeps the eval to a single run on a single default. Haiku stays in the fallback chain, so a Sonnet outage still gets a composed answer.
-- The choice is checked, not assumed: `npm run eval` runs the six sample questions and the edge cases against the default model and records the answers in `evals/results/latest.md`.
+- The choice is checked, not assumed: `npm run eval` runs the six sample questions, the edge cases and four prompt-injection attempts against the default model and records the answers in `evals/results/latest.md`.
 
 **Revisit when:** evals show misses at low effort (raise effort first), or the corpus gets large and messy enough that reasoning across it gets hard.
 
@@ -52,7 +52,7 @@ The knowledge base is 10 markdown files: 10,112 bytes, 1,775 words, about 3,000 
 
 **Brief:** "At least one provider must work on your live link." Also: an API key visible in the browser fails the assessment.
 
-**What I built:** the live site at `nimbus.ujjaval.ca` holds no provider keys at all. Every question runs the real fallback chain, finds no provider configured, and ends at the **sources-only fallback**: it returns the most relevant passages from the knowledge base with a plain note that they are not a checked answer. Questions the knowledge base does not cover get "That isn't covered in the NimbusStack knowledge base." without any model call. Composed answers, recorded locally against the same code, are in `evals/results/latest.md`.
+**What I built:** the live site at `nimbus.ujjaval.ca` holds no provider keys at all. Every question runs the real fallback chain, finds no provider configured, and ends at the **sources-only fallback**: it returns the most relevant passages from the knowledge base with a plain note that they are not a checked answer. When no passage matches the question's key terms, it replies "That isn't covered in the NimbusStack knowledge base." without any model call. Keyword matching is cruder than a model: a question that shares words with the documents but isn't answered by them (say, an uptime figure) gets the nearest passages rather than that line. Composed answers, recorded locally against the same code, are in `evals/results/latest.md`.
 
 **Why, from a security standpoint:**
 - The site is public and has no login (login is out of scope in the brief). A key on that server is a key anyone on the internet can spend, at whatever rate they like.
@@ -61,12 +61,43 @@ The knowledge base is 10 markdown files: 10,112 bytes, 1,775 words, about 3,000 
 
 **Trade-off, stated plainly:** reviewers will see quoted passages on the live link, not composed answers. Running locally with a key (see the README) shows the full experience.
 
-## 5. The two SHOULD items are left out
+## 5. One SHOULD item is left out: usage export
 
-- **Context-window warning (amber at 75%, red at 90%):** the whole knowledge base is about 3,000 tokens and the models' windows are 200,000 or more. A conversation would need around a hundred long exchanges to reach the amber line, so the warning would never appear in real use.
-- **Usage export (CSV or JSON):** a session costs fractions of a cent. Per-message tokens and cost, plus running session totals, are shown in the UI (required by R4); exporting them adds a feature nobody here needs.
+**Usage export (CSV or JSON):** a session costs fractions of a cent. Per-message tokens and cost, plus running session totals, are shown in the UI (required by R4); exporting them adds a feature nobody here needs.
+
+The other SHOULD item, the context-window warning, is built. See decision 7.
 
 ## 6. Platform and tooling
 
 - **One Cloudflare Worker** serves the web app and the streaming `/api/chat` route on a custom domain. No Vercel, no separate backend, no database: the browser keeps the conversation and sends it with each request, and saving chats between sessions is out of scope.
 - **No vector database, no embeddings, no RAG framework.** Official provider SDKs behind the adapter interface keep the fallback and error handling in code you can read in one sitting.
+
+## 7. The context-window warning is built, because "the context stays small" is an assumption
+
+**Brief (R4, SHOULD):** "Warn the user as the conversation gets close to the model's context-window limit (amber at 75%, red at 90%), and update the warning when they switch models." E7: switching to a model with a smaller window updates the warning right away.
+
+**What I built:**
+- A context meter in the header. It counts what the next request would put in the window: the system prompt, the conversation the model actually received, and its answers. It counts at 3 characters per token, which overcounts on purpose, and uses exactly the same count the server uses for trimming, so the warnings always come before anything is left out.
+- Amber at 75% and red at 90% of the selected model's window (thresholds in `models.json`), each with a "Start a new chat" button. The meter recalculates as soon as the model changes, so moving from Sonnet (1M tokens) to Haiku (200K) updates it at once (E7).
+- The server fits history to each model's own window (`src/llm/context.ts`), so a smaller backup model gets a smaller budget. Trimming starts only past 95% on the meter's scale. If older turns have to be left out, the answer says so in a notice. History is never cut silently and never rejected for length.
+- A test fails if the knowledge base grows past a quarter of the smallest model window, and its message points back to decision 1 (switch to retrieval).
+
+**Why, given decision 1 says the corpus is small:** the corpus is small today, but conversations, model choices and the documents can all change. An early draft cut history at a fixed 24,000 characters without telling anyone, which is exactly the kind of quiet failure this assessment is about. Measuring real usage and announcing any trimming costs little and keeps the app honest when the assumption stops holding.
+
+**On the live site** no model runs, so the meter reads "n/a".
+
+## 8. Prompt injection and untrusted output
+
+**Brief:** answers must come from the documents (an automatic fail otherwise), and keys must never reach the browser.
+
+**Threat model:** the knowledge base and the system prompt are public in this repo, so leaking them costs nothing. The model has no tools, so it cannot read files, browse or act. The browser holds the conversation, so a user who tampers with it only affects their own chat. What is left to defend is the grounding guarantee, the user's browser, and the developer's Claude login during local use.
+
+**What I built:**
+- **Prompt rules.** Documents and messages are information, not instructions. Requests to ignore the rules, take on a role, use outside knowledge or go off-topic get the NimbusStack part answered, or the exact "That isn't covered in the NimbusStack knowledge base." line. Earlier assistant turns are not treated as evidence, because the browser sends them and could have edited them.
+- **Checked, not assumed.** Four eval cases try this: an "ignore your instructions" request, an off-topic question, a false claim planted in the question, and a forged assistant turn in the history.
+- **A visible flag.** If a model answer cites no document and is not the "not covered" line, it shows a "No sources cited. Check before using." badge.
+- **Model output is treated as untrusted.** Answers render with no raw HTML, no images and no clickable outside links (only the citation chips). A strict Content Security Policy on every response blocks outside images, scripts and connections even if something slipped through.
+- **The local developer path is locked down.** The Agent SDK runs with no tools, no MCP servers, no claude.ai connectors and no local settings, and refuses to answer if it reports loading any. The local server listens only on `127.0.0.1` and rejects requests addressed to any other host name, so a malicious web page cannot reach it through DNS rebinding. History sent through it is tagged and escaped so a user cannot fake a turn. A timed-out attempt is cancelled, not left running.
+- **Hygiene.** Provider error text stays in server logs; the browser only gets plain-language notices. Requests are JSON-only and size-capped. The full git history is scanned for secrets before the repo goes public.
+
+**Not built, on purpose:** signing the conversation so the browser cannot edit earlier turns. Anyone who forges their own history only fools themselves, and signing would add a server secret to protect. Rate limiting is also left out because the live site has no key to spend; the README says to add it before anyone deploys this with one.
