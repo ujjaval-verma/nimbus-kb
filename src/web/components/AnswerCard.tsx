@@ -54,6 +54,7 @@ export function AnswerCard({ turn, nameOf }: { turn: Turn; nameOf: (id: string) 
               <details open>
                 <summary>
                   <span className="source-path">{p.headingPath}</span>
+                  <span className="source-id mono">{p.id}</span>
                   <span className="source-meta mono">{p.file}{p.docDate ? ` · ${p.docDate}` : ""}</span>
                 </summary>
                 <div className="prose"><AnswerMarkdown markdown={p.text} citedIds={NO_CITES} onCite={() => {}} /></div>

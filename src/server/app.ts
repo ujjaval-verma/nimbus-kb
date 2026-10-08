@@ -183,7 +183,7 @@ export function createApp(deps: AppDeps = {}): Hono {
         if (reservation?.ok && !modelAnswered && !modelStreamed && !sawDelta) await reservation.release().catch(() => {});
         if (stream.aborted) return;
         console.error("[chat] unexpected", err);
-        await stream.writeSSE({ event: "error", data: JSON.stringify({ type: "error", message: "Something went wrong on our side. Please try again." }) });
+        await stream.writeSSE({ event: "error", data: JSON.stringify({ type: "error", message: "Something went wrong on our side. Try again." }) });
       }
     });
   });

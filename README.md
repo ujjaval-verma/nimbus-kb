@@ -15,7 +15,7 @@ The live site answers with Claude Sonnet 5.5, with Gemini 3.5 Flash-Lite as the 
 
 <div align="center">
   <img src="docs/media/screenshot.png" alt="Nimbus KB running locally: Claude Sonnet 5.5 answers which products support SAML 2.0 in a table, product by product, with citation chips on every row" width="600"/>
-  <br><sub>Q5 locally, answered by Claude Sonnet 5.5. Every claim carries a citation chip, and the Vault documents that disagree are both cited.</sub>
+  <br><sub>Q5 locally, answered by Claude Sonnet 5.5, with citation chips on every row.</sub>
 </div>
 
 Nimbus KB is an internal chatbot for NimbusStack staff: sales on a live call, support chasing an error, trainers onboarding new hires. It answers from the 10 markdown files in [`nimbusstack-knowledge-base/`](nimbusstack-knowledge-base/) and nothing else. If the documents don't cover a question, it says "That isn't covered in the NimbusStack knowledge base." If two documents disagree, it cites both and says which is newer.
@@ -34,7 +34,7 @@ Nimbus KB is an internal chatbot for NimbusStack staff: sales on a live call, su
 | E1 Follow-up without the product | The model gets the whole conversation and resolves "its" from it. | Live (within the daily quota) |
 | E2 Not in the documents | Exactly "That isn't covered in the NimbusStack knowledge base." | Live |
 | E3 Partly covered | Answers the covered part and names what is missing. | Live (within the daily quota) |
-| E4 Documents disagree | Cites both and says which is newer (the Vault SAML case in the screenshot). | Live (within the daily quota) |
+| E4 Documents disagree | Cites both and says which is newer (the Vault SAML case; see Q5 and E4 in `evals/results/latest.md`). | Live (within the daily quota) |
 | E5 Loose wording | The model reads every section, so "single sign-on" finds SAML and "federated login". | Live (within the daily quota) |
 | E6 One table value | Values are quoted with their row and column labels. | Live (within the daily quota) |
 | E7 Model switch | Built: the context meter recalculates as soon as the model changes. | Meter live. Amber, red and E7 shown locally (see Known limitations). |
@@ -76,7 +76,7 @@ At startup the API server logs `anthropic: <choice>` and `gemini: on|off`, so yo
 - `ANTHROPIC_API_KEY`: used by the deployed Worker. Local dev ignores it unless `ANTHROPIC_DEV_API=1`.
 - `ANTHROPIC_DEV_API`: set to `1` (with `ANTHROPIC_API_KEY`) to make `npm run dev` use the paid Anthropic API instead of your Claude Code login.
 - `GEMINI_API_KEY`: turns on Gemini 3.5 Flash-Lite, which is also the first backup when Claude fails.
-- `CLAUDE_SUBSCRIPTION`: local dev uses your Claude Code login by default. Set it to `0` if you have no login. Unless `ANTHROPIC_DEV_API=1`, Claude is then off and Gemini (or sources-only) answers. Without a login and without this setting, each question first fails on Claude before Gemini answers.
+- `CLAUDE_SUBSCRIPTION`: local dev uses your Claude Code login by default. Set it to `0` if you have no login. Unless `ANTHROPIC_DEV_API=1`, Claude is then off and Gemini (or sources-only) answers. Without a login and without this setting, each question first fails on Claude before Gemini (or sources-only) answers.
 - `FAULT_INJECT`: forces a failure to demo the fallback, for example `claude-sonnet:rate_limit` or `claude-sonnet:midstream`.
 
 Keys can live in `.env`, or with [direnv](https://direnv.net/) in a gitignored `.envrc` (`export GEMINI_API_KEY=...`). Even with `ANTHROPIC_API_KEY` in your shell, local dev keeps using the Claude Code login until you set `ANTHROPIC_DEV_API=1`, so a loaded key never spends money by accident.
@@ -105,7 +105,7 @@ adapters:  Claude API  ·  Gemini API  ·  Claude Code login (Node only)
 sources-only:  keyword-ranked passages, no model call
 ```
 
-One Cloudflare Worker serves the React app as static assets and the Hono API under `/api/*`. Locally the same Hono app runs on Node at `127.0.0.1:8787` behind Vite, and adds the Claude Code login adapter and fault injection. The browser keeps the conversation. On the Worker, the quota's Durable Object (`QuotaCounter`) keeps only today's answer counts, keyed by a salted daily hash, and the `BURST` rate limiter allows each visitor about 3 requests per 10 seconds. The Node server has neither.
+One Cloudflare Worker serves the React app as static assets and the Hono API under `/api/*`. Locally the same Hono app runs on Node at `127.0.0.1:8787` behind Vite, and adds the Claude Code login adapter and fault injection. The browser keeps the conversation. On the Worker, the quota's Durable Object (`QuotaCounter`) keeps only today's answer counts, keyed by a salted daily hash, and the `BURST` rate limiter allows each visitor about 3 questions per 10 seconds. The Node server has neither.
 
 <details>
 <summary>Source layout</summary>
@@ -160,7 +160,7 @@ test/        Vitest, mirroring src/, plus recorded fixtures in test/fixtures/
 
 - **Keys never reach the browser.** They reach the deployment only as Worker secrets (`wrangler secret put`). `scripts/check-bundles.ts` fails `npm run check` (and so every `npm run deploy`) if a key name or key-shaped string is in the browser bundle, or if the Claude Code login adapter is in the Worker bundle.
 - **No quota, no model.** The Worker registers a model only when the quota is fully set up: the `QUOTA` Durable Object, the `BURST` rate limiter, the `QUOTA_SALT` secret and valid limits. Anything missing or invalid means sources-only, never unlimited.
-- **Three caps plus a burst limit.** Three caps (per visitor, site-wide, per request) plus a burst limit per visitor. 10 answers per visitor per day and 300 per day site-wide, both set in `wrangler.json` `vars`. Per request, at most 60,000 bytes of history (about 15,000 tokens of English, oldest messages left out first, with a notice) in at most 40 messages, and a 3,000-token reply. Burst: about 3 requests per 10 seconds per visitor (429 after that). Cloudflare's rate limiter counts per location and is eventually consistent, so it slows bursts, and the daily counts are the exact cap. Empty earlier turns are dropped. A question counts once even if it falls back to another provider, and a question no model answered does not count, unless a model had already streamed part of an answer (it was billed).
+- **Three caps (per visitor, site-wide, per request) plus a burst limit per visitor.** 10 answers per visitor per day and 300 per day site-wide, both set in `wrangler.json` `vars`. Per request, at most 60,000 bytes of history (about 15,000 tokens of English, oldest messages left out first, with a notice) in at most 40 messages, and a 3,000-token reply. Burst: about 3 questions per 10 seconds per visitor (429 after that). Cloudflare's rate limiter counts per location and is eventually consistent, so it slows bursts, and the daily counts are the exact cap. Empty earlier turns are dropped. A question counts once even if it falls back to another provider, and a question no model answered does not count, unless a model had already streamed part of an answer (it was billed).
 - **No IP address is stored.** A visitor is counted by `sha256(day + QUOTA_SALT + address)`, with IPv6 grouped by /64. The salt and the date change the hash every day, and old days are deleted.
 - **Per-IP limits alone are not protection.** Anyone can change IP address with a phone network or a VPN. What bounds the spend is the site-wide cap and, behind it, limits at the providers: a spend limit on the Anthropic workspace that holds the key, and a budget alert on the Google Cloud project for the Gemini key.
 - **What a day can cost.** About a cent for a typical question; the worst case is $46 to $50 a day at Sonnet list prices, or about $84 if every provider fails after being billed. The provider spend limits are the hard bound. The arithmetic is in [decision 4](docs/decisions.md#4-the-public-site-has-real-keys-behind-a-daily-quota).

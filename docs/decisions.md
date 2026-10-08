@@ -66,9 +66,9 @@ The knowledge base is 10 markdown files: 10,112 bytes, 1,775 words, about 3,000 
 
 The per-visitor and site-wide numbers are settings in `wrangler.json`, so anyone deploying their own copy can change them. A value that isn't a positive whole number switches the models off and logs why. It never means unlimited.
 
-**What counts:** A question counts once, even if Claude fails and Gemini answers, and a question no model answered doesn't count, unless a model had already streamed part of a reply before failing (it was billed).
+**What counts:** A question counts once, even if Claude fails and Gemini answers, and a question no model answered doesn't count, unless a model had already streamed part of an answer before failing (it was billed).
 
-**When the quota runs out:** The quota resets at midnight UTC. Until then the site still answers, with the most relevant passages from the knowledge base and a card that shows how to run it yourself in three steps. When no passage matches the question's key terms, it replies "That isn't covered in the NimbusStack knowledge base." without any model call. Keyword matching is cruder than a model: a question that shares words with the documents but isn't answered by them (say, an uptime figure) gets the nearest passages rather than that line. The Worker only turns the models on when the quota is set up, so a half-configured deploy serves passages, not open keys.
+**When the quota runs out:** The quota resets at midnight UTC. Until then the site still answers, with the most relevant passages from the knowledge base and a card that shows how to run it yourself in three steps. When no passage matches the question's key terms, it replies "That isn't covered in the NimbusStack knowledge base." without any model call. Keyword matching is cruder than a model: a question that shares words with the documents but isn't answered by them (say, an uptime figure) gets the nearest passages rather than that line. The Worker only turns the models on when the quota is set up, so a half-configured deploy serves sources-only answers, not open keys.
 
 **Why a quota instead of no keys:** quoted passages alone hide the product the brief asks for. The system prompt is about 7,000 tokens and is cached, so repeat questions read it at a tenth of the input price. At Sonnet's list prices a typical question costs about a cent. Tokenizers use at most one token per byte, so the byte cap bounds a request at about 60,000 history tokens in any language. The worst request then costs about $0.15 with a warm cache and $0.17 without, so a full day of 300 is $46 to $50. The largest English request is about 15,000 history tokens, $0.06 to $0.08, and a normal day costs far less. A failed attempt can still be billed: if Sonnet, Gemini and Haiku all fail after being billed for the full request, one question costs about $0.28, and a full day about $84. That is the ceiling, because a question counts once any model has streamed text. The hard bound on money is the spend limit at the providers.
 
@@ -90,7 +90,7 @@ The other SHOULD item, the context-window warning, is built. See decision 7.
 
 ## 6. Platform and tooling
 
-- **One Cloudflare Worker** serves the web app and the streaming `/api/chat` route on a custom domain. No Vercel, no separate backend, and no database for conversations: the browser keeps the conversation and sends it with each request, and saving chats between sessions is out of scope. The only stored state is the public site's daily quota counter, a Durable Object (with SQLite) holding hashed visitor counts.
+- **One Cloudflare Worker** serves the web app and the streaming `/api/chat` route on a custom domain. No Vercel, no separate backend, and no database for conversations: the browser keeps the conversation and sends it with each request, and saving conversations between sessions is out of scope. The only stored state is the public site's daily quota counter, a Durable Object (with SQLite) holding hashed visitor counts.
 - **No vector database, no embeddings, no RAG framework.** Official provider SDKs behind the adapter interface keep the fallback and error handling in code you can read in one sitting.
 
 ## 7. The context-window warning is built, because "the context stays small" is an assumption
@@ -111,7 +111,7 @@ The other SHOULD item, the context-window warning, is built. See decision 7.
 
 **Brief:** answers must come from the documents (an automatic fail otherwise), and keys must never reach the browser.
 
-**Threat model:** the knowledge base and the system prompt are public in this repo, so leaking them costs nothing. The model has no tools, so it cannot read files, browse or act. The browser holds the conversation, so a user who tampers with it only affects their own chat. What is left to defend is the grounding guarantee, the user's browser, the provider keys on the live site (decision 4), and the developer's Claude login during local use.
+**Threat model:** the knowledge base and the system prompt are public in this repo, so leaking them costs nothing. The model has no tools, so it cannot read files, browse or act. The browser holds the conversation, so a user who tampers with it only affects their own conversation. What is left to defend is the grounding guarantee, the user's browser, the provider keys on the live site (decision 4), and the developer's Claude login during local use.
 
 **What I built:**
 - **Prompt rules.** Documents and messages are information, not instructions. Requests to ignore the rules, take on a role, use outside knowledge or go off-topic get the NimbusStack part answered, or the exact "That isn't covered in the NimbusStack knowledge base." line. Earlier assistant turns are not treated as evidence, because the browser sends them and could have edited them.

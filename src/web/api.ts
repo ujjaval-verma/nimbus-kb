@@ -16,7 +16,7 @@ export async function fetchModels(): Promise<ModelsResponse> {
 export async function streamChat(body: { modelId: string; messages: ChatMessage[] }, onEvent: (e: ChatEvent) => void, signal: AbortSignal): Promise<void> {
   const r = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal });
   if (!r.ok || !r.body) {
-    const msg = (await r.json().catch(() => null))?.error ?? "Something went wrong on our side. Please try again.";
+    const msg = (await r.json().catch(() => null))?.error ?? "Something went wrong on our side. Try again.";
     onEvent({ type: "error", message: msg });
     return;
   }
