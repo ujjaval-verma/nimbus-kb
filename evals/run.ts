@@ -7,6 +7,7 @@ import { buildSystemPrompt, PROMPT_VERSION } from "../src/llm/prompt";
 import type { ChatEvent, ChatMessage } from "../src/llm/types";
 import { CASES } from "./cases";
 import { check } from "./check";
+import { demoteHeadings } from "./format";
 
 const modelId = process.argv.includes("--model") ? process.argv[process.argv.indexOf("--model") + 1] : CONFIG.fallbackOrder[0];
 const model = getModel(modelId);
@@ -55,7 +56,7 @@ for (const c of selected) {
   console.log(`${fails.length ? "FAIL" : "PASS"} ${c.id} ${c.label}${fails.length ? `\n  - ${fails.join("\n  - ")}` : ""}`);
   rows.push(`## ${c.id}: ${c.label} (${fails.length ? "FAIL" : "PASS"})\n\n` +
     (c.history ? `*Prefilled history (sent by a tampered client):*\n\n${c.history.map((m) => `> **${m.role}:** ${m.content}`).join("\n>\n")}\n\n` : "") +
-    answers.map((a) => `> ${a.turn}\n\n${a.text}`).join("\n\n") + "\n\n" +
+    answers.map((a) => `> ${a.turn}\n\n${demoteHeadings(a.text)}`).join("\n\n") + "\n\n" +
     `<sub>${last.done.answeredBy} · ${answers.length > 1 ? `${answers.length} turns · ` : ""}${tokensIn} in · ${tokensOut} out · $${caseCost.toFixed(4)} · ` +
     `cited${answers.length > 1 ? " in the last answer" : ""}: ${cited.join(", ") || "none"}</sub>` +
     (fails.length ? `\n\nFailed checks: ${fails.join("; ")}` : ""));
@@ -69,7 +70,7 @@ mkdirSync("evals/results", { recursive: true });
 writeFileSync("evals/results/latest.md",
   `# Sample answers\n\nRecorded locally with ${model.name} (\`${model.model}\`), prompt ${PROMPT_VERSION}, on ${new Date().toLocaleDateString("en-CA")}. ` +
   `${CASES.length - failed}/${CASES.length} passed. Total estimated cost at API list prices: $${totalCost.toFixed(4)}.\n\n` +
-  `These are the brief's six sample questions, its edge cases and four prompt-injection attempts, run with the same prompt, fallback chain and citation code as the app, through the local Claude subscription adapter (which sends prior turns as tagged text, where the live API adapter sends real message roles). Checks are keyword and citation heuristics, so read the answers too. The public site allows only a few answers a day per visitor, so this page shows every case in one place.\n\n` +
+  `These are the brief's six sample questions, its edge cases and four prompt-injection attempts, run with the same prompt, fallback chain and citation code as the app, through the Claude Code login adapter (which sends prior turns as tagged text, where the live API adapter sends real message roles). Checks are keyword and citation heuristics, so read the answers too. The public site allows only a few answers a day per visitor, so this page shows every case in one place.\n\n` +
   rows.join("\n\n---\n\n") + "\n");
 console.log(`\n${CASES.length - failed}/${CASES.length} passed, $${totalCost.toFixed(4)}`);
 process.exit(failed ? 1 : 0);

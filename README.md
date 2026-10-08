@@ -24,11 +24,11 @@ Nimbus KB is an internal chatbot for NimbusStack staff: sales on a live call, su
 
 | Requirement | How | Live / Local |
 |---|---|---|
-| R1 Chat | Streamed replies over SSE, the conversation kept in the browser and sent with each question, a **New Conversation** button. | Live |
-| R2 Grounding | The whole knowledge base (32 sections, about 3,000 tokens) goes to the model with a stable id per section. The model cites ids inline, the server checks each one, and the cited passages appear under the answer. With no model, a keyword ranker picks the passages. | Live |
-| R3 Model switching | Dropdown from `src/llm/models.json` with provider name and description. Claude and Gemini are implemented, each recorded once against its live API and tested offline with fixtures. OpenAI is a placeholder. Fallback order: Sonnet, Gemini 3.5 Flash-Lite, Haiku, then passages. | Dropdown live. Fallback: Live when a provider fails; demo locally with `FAULT_INJECT` |
+| R1 Chat | Streamed answers over SSE, the conversation kept in the browser and sent with each question, a **New Conversation** button. | Live |
+| R2 Grounding | The whole knowledge base (32 sections, about 3,000 tokens) goes to the model with a stable id per section. The model cites ids inline, the server checks each one, and the cited passages appear under the answer. With no model (sources-only), a keyword ranker picks the passages. | Live |
+| R3 Model switching | Dropdown from `src/llm/models.json` with provider name and description. Claude and Gemini are implemented, each recorded once against its live API and tested offline with fixtures. OpenAI is a placeholder. Fallback order: Claude Sonnet 5.5, Gemini 3.5 Flash-Lite, Claude Haiku 4.5, then sources-only. | Dropdown live. Fallback: Live when a provider fails; demo locally with `FAULT_INJECT` |
 | R4 Usage | Input and output tokens and cost on every answer, session totals in the header, priced from `models.json`. | Live (within the daily quota) |
-| R4 Context warning | A meter in the header, amber at 75% and red at 90% of the selected model's window, each with **Start a new conversation**. History that would overflow is trimmed oldest first, with a notice. | Local (on the public site every model shares the same capped window, so switching models does not move the meter, and amber and red only appear in a long conversation within the cap) |
+| R4 Context warning | A meter in the header, amber at 75% and red at 90% of the selected model's window, each with **Start a new conversation**. History that would overflow is trimmed oldest first, with a notice. | Meter live. Amber, red and E7 shown locally (see Known limitations). |
 | R5 Backend | Every request goes through the Hono server, which streams the reply and reports the model that actually answered, its usage and its passages. Keys stay on the server. | Live |
 | Q1-Q6 | All six pass with cited answers, grouped per product when the question names none. | Live (within the daily quota). Also in evals/results/latest.md |
 | E1 Follow-up without the product | The model gets the whole conversation and resolves "its" from it. | Live (within the daily quota) |
@@ -37,7 +37,7 @@ Nimbus KB is an internal chatbot for NimbusStack staff: sales on a live call, su
 | E4 Documents disagree | Cites both and says which is newer (the Vault SAML case in the screenshot). | Live (within the daily quota) |
 | E5 Loose wording | The model reads every section, so "single sign-on" finds SAML and "federated login". | Live (within the daily quota) |
 | E6 One table value | Values are quoted with their row and column labels. | Live (within the daily quota) |
-| E7 Model switch | Built: the context meter recalculates as soon as the model changes. | Local (on the public site every model shares the same capped window, so switching models does not move the meter, and amber and red only appear in a long conversation within the cap) |
+| E7 Model switch | Built: the context meter recalculates as soon as the model changes. | Meter live. Amber, red and E7 shown locally (see Known limitations). |
 | E8 Provider fails mid-reply | The server sends a reset, the browser drops the partial text, and the backup's answer is labelled "fallback from ...". | Live when a provider fails; demo locally with `FAULT_INJECT` (see [Demo the fallback](#demo-the-fallback)) |
 | E9 Rate limits and errors | Plain-language notices with a next step. Provider error text stays in server logs. | Live |
 | E10 Blank message | Rejected in the browser and again on the server (400), with no provider call. | Live |
@@ -76,7 +76,7 @@ At startup the API server logs `anthropic: <choice>` and `gemini: on|off`, so yo
 - `ANTHROPIC_API_KEY`: used by the deployed Worker. Local dev ignores it unless `ANTHROPIC_DEV_API=1`.
 - `ANTHROPIC_DEV_API`: set to `1` (with `ANTHROPIC_API_KEY`) to make `npm run dev` use the paid Anthropic API instead of your Claude Code login.
 - `GEMINI_API_KEY`: turns on Gemini 3.5 Flash-Lite, which is also the first backup when Claude fails.
-- `CLAUDE_SUBSCRIPTION`: local dev uses your Claude Code login by default. Set it to `0` if you have none; without `ANTHROPIC_DEV_API=1` there is then no Claude, and answers come from Gemini or as passages.
+- `CLAUDE_SUBSCRIPTION`: local dev uses your Claude Code login by default. Set it to `0` if you have no login. Unless `ANTHROPIC_DEV_API=1`, Claude is then off and Gemini (or sources-only) answers. Without a login and without this setting, each question first fails on Claude before Gemini answers.
 - `FAULT_INJECT`: forces a failure to demo the fallback, for example `claude-sonnet:rate_limit` or `claude-sonnet:midstream`.
 
 Keys can live in `.env`, or with [direnv](https://direnv.net/) in a gitignored `.envrc` (`export GEMINI_API_KEY=...`). Even with `ANTHROPIC_API_KEY` in your shell, local dev keeps using the Claude Code login until you set `ANTHROPIC_DEV_API=1`, so a loaded key never spends money by accident.
@@ -151,27 +151,23 @@ test/        Vitest, mirroring src/, plus recorded fixtures in test/fixtures/
 - **The public site has a daily quota.** Each visitor gets 10 model answers a day. Deployers can change this and the 300-a-day site cap in `wrangler.json` `vars`. Everyone behind one IP address (an office, a campus) shares those 10. There is no CAPTCHA. Conversations there are capped at 60,000 bytes of history (about 15,000 tokens of English) in at most 40 messages, and 3,000-token replies, so the context meter there cannot show E7.
 - **OpenAI is a placeholder.** It is in the dropdown, marked as such, and can't answer.
 - **Tests replay API fixtures recorded once.** A change in a provider's API shows up in the tests only when someone re-records them.
-- **Failed attempts aren't counted.** Tokens spent by a model that failed before the fallback answered are not in the usage totals.
-- **The keyword fallback would not scale.** It is fine for 32 sections; a large corpus would need real search.
+- **Usage totals leave out failed attempts.** Tokens spent by a model that failed before the fallback answered are not in the usage totals.
+- **The sources-only keyword ranker would not scale.** It is fine for 32 sections; a large corpus would need real search.
 - **Token counts before the first reply are estimates** (characters divided by 3), as are the turns after the last reply.
-- **The browser holds the history,** so a user can edit their own past turns. That only affects their own chat, and the prompt treats earlier assistant turns as not evidence.
+- **The browser holds the history,** so a user can edit their own past turns. That only affects their own conversation, and the prompt treats earlier assistant turns as not evidence.
 
 ## Security
 
 - **Keys never reach the browser.** They reach the deployment only as Worker secrets (`wrangler secret put`). `scripts/check-bundles.ts` fails `npm run check` (and so every `npm run deploy`) if a key name or key-shaped string is in the browser bundle, or if the Claude Code login adapter is in the Worker bundle.
 - **No quota, no model.** The Worker registers a model only when the quota is fully set up: the `QUOTA` Durable Object, the `BURST` rate limiter, the `QUOTA_SALT` secret and valid limits. Anything missing or invalid means sources-only, never unlimited.
-- **Three caps plus a burst limit.** 10 answers per visitor per day and 300 per day site-wide, both set in `wrangler.json` `vars`. Per request, at most 60,000 bytes of history (about 15,000 tokens of English, oldest messages left out first, with a notice) in at most 40 messages, and a 3,000-token reply. About 3 requests per 10 seconds per visitor (429 after that): Cloudflare's rate limiter counts per location and is eventually consistent, so it slows bursts, and the daily counts are the exact cap. Empty earlier turns are dropped. A question counts once even if it falls back to another provider, and a question no model answered does not count, unless a model had already streamed part of a reply (it was billed).
+- **Three caps plus a burst limit.** Three caps (per visitor, site-wide, per request) plus a burst limit per visitor. 10 answers per visitor per day and 300 per day site-wide, both set in `wrangler.json` `vars`. Per request, at most 60,000 bytes of history (about 15,000 tokens of English, oldest messages left out first, with a notice) in at most 40 messages, and a 3,000-token reply. Burst: about 3 requests per 10 seconds per visitor (429 after that). Cloudflare's rate limiter counts per location and is eventually consistent, so it slows bursts, and the daily counts are the exact cap. Empty earlier turns are dropped. A question counts once even if it falls back to another provider, and a question no model answered does not count, unless a model had already streamed part of an answer (it was billed).
 - **No IP address is stored.** A visitor is counted by `sha256(day + QUOTA_SALT + address)`, with IPv6 grouped by /64. The salt and the date change the hash every day, and old days are deleted.
 - **Per-IP limits alone are not protection.** Anyone can change IP address with a phone network or a VPN. What bounds the spend is the site-wide cap and, behind it, limits at the providers: a spend limit on the Anthropic workspace that holds the key, and a budget alert on the Google Cloud project for the Gemini key.
-- **What a day can cost.** The history cap is a hard bound in bytes: at most 60,000 bytes of UTF-8 text in at most 40 messages. Provider tokenizers never use more than one token per byte, so a request carries at most about 60,000 history tokens whatever the language, plus the system prompt (about 7,000 tokens, cached) and a reply of at most 3,000 tokens. At Sonnet list prices ($2 per million input tokens, $10 output, $0.20 cache read, $2.50 cache write) the worst request costs about $0.15 with a warm cache and $0.17 without, so 300 of them come to $46 to $50 a day. English is about 4 bytes per token, so the largest English request is about 15,000 history tokens: $0.06 to $0.08. A typical question with a short reply costs about $0.01. If every provider fails after being billed (Sonnet, then Gemini, then Haiku, each with the full request), one question can cost about $0.28, and a full day about $84. That is the ceiling: each question counts against the quota once any model has streamed text. The provider spend limits are the hard bound on money.
+- **What a day can cost.** About a cent for a typical question; the worst case is $46 to $50 a day at Sonnet list prices, or about $84 if every provider fails after being billed. The provider spend limits are the hard bound. The arithmetic is in [decision 4](docs/decisions.md#4-the-public-site-has-real-keys-behind-a-daily-quota).
 - **Test fixtures are scrubbed**, and a test fails on any key-shaped string or auth header in them.
 - **Prompt injection:** prompt rules 11 and 12 treat documents and messages as information, not instructions, and earlier assistant turns as not evidence. The model has no tools. Answers render with no raw HTML, no images and no outside links, behind a strict Content Security Policy. Eval cases I1-I4 try the attacks, and an answer that cites nothing gets a "No sources cited" badge.
 - **The local server listens on `127.0.0.1` only**, because it can spend your Claude Code login.
 
-## Run your own
+## Deploy your own
 
-1. Clone [the repo](https://github.com/ujjaval-verma/nimbus-kb).
-2. Add your Anthropic and/or Gemini API key to a `.env` file (see `.env.example`).
-3. Run `npm install && npm run dev`.
-
-Locally there is no quota. To deploy your own copy to Cloudflare, edit `routes` in `wrangler.json` (it points at this site's domain), then `wrangler secret put QUOTA_SALT` (for example `openssl rand -hex 32`) and at least one of `ANTHROPIC_API_KEY` and `GEMINI_API_KEY`, then `npm run deploy`.
+To deploy your own copy to Cloudflare, edit `routes` in `wrangler.json` (it points at this site's domain), then `wrangler secret put QUOTA_SALT` (for example `openssl rand -hex 32`) and at least one of `ANTHROPIC_API_KEY` and `GEMINI_API_KEY`, then `npm run deploy`. To run it on your own machine instead, see [Run it locally](#run-it-locally); locally there is no quota.

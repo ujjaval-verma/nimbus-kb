@@ -2,7 +2,7 @@
 
 Recorded locally with Claude Sonnet 5.5 (`claude-sonnet-5-5`), prompt 2026-10-07.2, on 2026-10-07. 18/18 passed. Total estimated cost at API list prices: $0.1394.
 
-These are the brief's six sample questions, its edge cases and four prompt-injection attempts, run with the same prompt, fallback chain and citation code as the app, through the local Claude subscription adapter (which sends prior turns as tagged text, where the live API adapter sends real message roles). Checks are keyword and citation heuristics; each answer was also fact-checked by hand against the knowledge base. The public site allows only a few answers a day per visitor, so this page shows every case in one place.
+These are the brief's six sample questions, its edge cases and four prompt-injection attempts, run with the same prompt, fallback chain and citation code as the app, through the Claude Code login adapter (which sends prior turns as tagged text, where the live API adapter sends real message roles). Checks are keyword and citation heuristics; each answer was also fact-checked by hand against the knowledge base. The public site allows only a few answers a day per visitor, so this page shows every case in one place.
 
 ## Q1: Pro vs Enterprise comparison (PASS)
 
@@ -10,7 +10,7 @@ These are the brief's six sample questions, its edge cases and four prompt-injec
 
 The question doesn't name a product, so here is Pro vs Enterprise for each one.
 
-## Nimbus Relay
+#### Nimbus Relay
 Prices are per seat per month on an annual plan.
 
 | | Pro | Enterprise |
@@ -29,7 +29,7 @@ Source for the table: [relay.md#pricing, relay.md#support-sla]
 - **Pro price change:** the Pro price changes to $59 per seat per month for new contracts signed on or after 1 August 2026. Existing contracts keep their price until renewal [relay-release-notes.md#4-2].
 - **Pricing page:** the pricing page (dated 2026-06-12) still lists $49, and the release notes (dated 2026-06-10) give the $59 change. The pricing page is newer [relay.md#pricing, relay-release-notes.md#4-2].
 
-## Nimbus Vault
+#### Nimbus Vault
 Prices are per seat per month on an annual plan.
 
 | | Pro | Enterprise |
@@ -45,7 +45,7 @@ Prices are per seat per month on an annual plan.
 Source for the table: [vault.md#pricing, vault.md#support-sla]
 - **Disagreement on Pro SAML:** the security overview (2026-01-15) lists Vault SAML 2.0 on Enterprise only [security-overview.md#identity]. The Vault pricing table (2026-07-03) lists SAML 2.0 on Pro [vault.md#pricing]. The release notes say 3.1 extended SAML to Pro, which was previously Enterprise only [vault-release-notes.md#3-1]. The Vault document is newer.
 
-## Nimbus Pulse
+#### Nimbus Pulse
 Prices are per workspace per month on an annual plan.
 
 | | Pro | Enterprise |
@@ -60,7 +60,7 @@ Prices are per workspace per month on an annual plan.
 Source for the table: [pulse.md#pricing, pulse.md#support-sla]
 - Single sign-on (OIDC) is available on both Pro and Enterprise [pulse.md#access-and-sign-in].
 
-## Nimbus Ledger
+#### Nimbus Ledger
 Prices are per month on an annual plan, plus 0.5% of invoiced volume [ledger.md#pricing].
 
 | | Pro | Enterprise |
