@@ -17,7 +17,7 @@ The knowledge base is 10 markdown files: 10,112 bytes, 1,775 words, about 3,000 
 - The brief's hardest questions are retrieval failures waiting to happen. Q5 ("which of our products support SAML?") is only correct if every product's sign-in section comes back. E1 ("what about its SLA?") needs the product carried over from earlier turns. E5 ("single sign-on") needs synonym matching to find "SAML" and "federated login". An early design review of a retrieval pipeline for this corpus found three bugs of exactly this kind. With the full corpus in context, recall is 100% by construction and the model handles wording and follow-ups itself.
 - The second half of R2 is kept, and made stronger: the passages shown are the ones the answer actually cited, not the ones a ranker guessed were relevant.
 
-**Where retrieval still lives:** a simple keyword ranker picks passages for the sources-only fallback (decision 4), which runs when no AI provider is available.
+**Where retrieval still lives:** a simple keyword ranker picks passages for the sources-only fallback (decision 4), which runs when no AI provider is available or the public site's daily quota is used up.
 
 **Revisit when:** the corpus grows past roughly 100k tokens, or changes often enough that sending all of it gets expensive. Then: hybrid keyword and embedding search with rank fusion, and the same citation checks.
 
@@ -25,41 +25,57 @@ The knowledge base is 10 markdown files: 10,112 bytes, 1,775 words, about 3,000 
 
 **Brief:** a dropdown of Claude, OpenAI and Gemini; model choice is open.
 
-**What I built:** the default is Claude Sonnet 5.5 at low reasoning effort, with Claude Haiku 4.5 as the automatic backup. Neither is a frontier model (Anthropic's Opus and Fable tiers). Model details (description, price, context window, effort, fallback order) live in `src/llm/models.json`.
+**What I built:** the default is Claude Sonnet 5.5 at low reasoning effort. If it fails, Gemini 3.5 Flash-Lite answers, and after that Claude Haiku 4.5. None of them is a frontier model (Anthropic's Opus and Fable tiers). Model details (description, price, context window, effort, fallback order) live in `src/llm/models.json`.
 
 **Why:**
 - With the whole corpus in front of it, the task is careful reading of 3,000 tokens: compare tiers, cite, refuse when the answer is missing, flag documents that disagree. That does not need frontier reasoning.
 - Latency matters more than depth for the people this is for. A sales executive on a live customer call wants the answer in a second or two, so Sonnet runs at low effort.
-- Sonnet rather than the smaller Haiku: one tier up buys a margin on the cases that are easiest to get subtly wrong (the documents that disagree, the complete cross-product answer), and keeps the eval to a single run on a single default. Haiku stays in the fallback chain, so a Sonnet outage still gets a composed answer.
+- Sonnet rather than the smaller Haiku: one tier up buys a margin on the cases that are easiest to get subtly wrong (the documents that disagree, the complete cross-product answer), and keeps the eval to a single run on a single default.
+- The first backup is on another provider. A second Claude model does not help when Anthropic itself is down or my account hits a limit, so Gemini 3.5 Flash-Lite comes before Haiku. It is fast and cheap, which suits a backup that should rarely run. Haiku stays last, so a Sonnet outage still gets a composed answer even without a Gemini key.
 - The choice is checked, not assumed: `npm run eval` runs the six sample questions, the edge cases and four prompt-injection attempts against the default model and records the answers in `evals/results/latest.md`.
 
 **Revisit when:** evals show misses at low effort (raise effort first), or the corpus gets large and messy enough that reasoning across it gets hard.
 
-## 3. One provider implemented and tested; the others are placeholders behind an adapter
+## 3. Two providers implemented and tested; OpenAI is a placeholder behind the same adapter
 
 **Brief (R3):** switch between Claude, OpenAI and Gemini, with automatic fallback to a backup provider. "A placeholder for the others is okay, tell us on the call."
 
 **What I built:**
 - All model calls go through one small `Adapter` interface (`src/llm/types.ts`): stream text, report token usage, and classify failures as rate limit, quota, auth, unavailable or bad request. The fallback chain only ever talks to that interface.
 - Claude is implemented two ways: through the Anthropic API when `ANTHROPIC_API_KEY` is set, and through a local developer login for development and evals.
-- OpenAI and Gemini appear in the dropdown from `models.json`, marked "Placeholder, not implemented". Adding one is a single adapter file of about 40 lines that implements the same interface; nothing else in the app changes.
+- Gemini is implemented through Google's API when `GEMINI_API_KEY` is set. It is the cross-provider backup (decision 2).
+- OpenAI appears in the dropdown from `models.json`, marked "Placeholder, not implemented". Adding it is one adapter file that implements the same interface; nothing else in the app changes.
 
-**Why multi-provider was not tested end to end:** no API keys were provided for this assessment, and I chose not to create and spend my own across three vendors for a public demo. The fallback logic itself is tested offline with fake adapters that fail in every way the interface defines, including failing halfway through a reply (the partial text is discarded, so a reply never mixes two models). Once real keys are provided, a provider plugs into that same tested path.
+**How the providers are tested:** each API adapter runs against its live API once: one real answer to a short question with the full knowledge base in the prompt, one call with a deliberately invalid key, and one with a model name that does not exist. The last two cost nothing. The responses are saved as test fixtures, with keys scrubbed, and the tests replay them offline. Errors that are expensive or impractical to trigger on purpose, like rate limits, outages and a reply cut off before any text, are hand-written fixtures marked as synthetic. The fallback chain itself is tested with fake adapters that fail in every way the interface defines, including failing halfway through a reply (the partial text is discarded, so a reply never mixes two models). One manual run checks the real thing: Sonnet is forced to fail and Gemini answers.
 
-**Why this is the prudent choice:** every provider key is a long-lived secret that can spend money. Fewer keys means fewer secrets to store, rotate and leak, and less untested code that only runs when a key happens to be present.
+**Why record once and replay:** the live calls cost a few cents, once. After that the tests are fast and give the same result every time, and they need no key, so anyone can run them from a fresh clone and a CI job would need no secrets. A test also fails if a fixture ever contains anything shaped like a key.
 
-## 4. The public site runs with no API keys
+**Why two providers, not three:** every provider key is a long-lived secret that can spend money. Two providers are enough for a real cross-provider fallback; a third adds another secret to store, rotate and leak without making the answers better.
+
+## 4. The public site has real keys, behind a daily quota
 
 **Brief:** "At least one provider must work on your live link." Also: an API key visible in the browser fails the assessment.
 
-**What I built:** the live site at `nimbus.ujjaval.ca` holds no provider keys at all. Every question runs the real fallback chain, finds no provider configured, and ends at the **sources-only fallback**: it returns the most relevant passages from the knowledge base with a plain note that they are not a checked answer. When no passage matches the question's key terms, it replies "That isn't covered in the NimbusStack knowledge base." without any model call. Keyword matching is cruder than a model: a question that shares words with the documents but isn't answered by them (say, an uptime figure) gets the nearest passages rather than that line. Composed answers, recorded locally against the same code, are in `evals/results/latest.md`.
+**What I built:** the live site at `nimbus.ujjaval.ca` answers with Claude Sonnet 5.5, with Gemini 3.5 Flash-Lite as the backup. Both keys are Worker secrets: they stay on Cloudflare's servers and never reach the browser, and the build checks that no key names or key-shaped strings end up in the browser bundle. The keys are only used behind a quota, capped three ways:
+- **Per visitor:** 10 model answers a day, enough for the six sample questions and a few follow-ups. A visitor is an IP address (for IPv6, the /64 block a home or server usually gets).
+- **Site-wide:** 300 model answers a day, for everyone together. That is 30 people using their full allowance, far more than this demo should see.
 
-**Why, from a security standpoint:**
-- The site is public and has no login (login is out of scope in the brief). A key on that server is a key anyone on the internet can spend, at whatever rate they like.
-- A key that is never deployed cannot leak from the deployment: not through a misconfigured bundle, a logged request, or a compromised dependency. The build also checks that no key names or key-shaped strings end up in the browser bundle.
-- The fallback chain is the same code path used when a provider is down, so the public site still exercises the error handling the brief asks for (R5, E9), and it never makes anything up because it only quotes the documents.
+Both numbers are settings in `wrangler.json`, so anyone deploying their own copy can change them. A value that isn't a positive whole number switches the models off and logs why; it never means unlimited.
+- **Per request:** at most 20,000 tokens of conversation history and a 1,000-token reply, and no more than 3 questions every 10 seconds.
 
-**Trade-off, stated plainly:** reviewers will see quoted passages on the live link, not composed answers. Running locally with a key (see the README) shows the full experience.
+A question counts once, even if Claude fails and Gemini answers, and a question no model answered doesn't count. Composed answers for every eval case are also in `evals/results/latest.md`, and running the app locally has no limit. Once the quota is used up, the site still answers, with the most relevant passages from the knowledge base and a card that shows how to run it yourself in three steps. When no passage matches the question's key terms, it replies "That isn't covered in the NimbusStack knowledge base." without any model call. Keyword matching is cruder than a model: a question that shares words with the documents but isn't answered by them (say, an uptime figure) gets the nearest passages rather than that line. The Worker only turns the models on when the quota is set up, so a half-configured deploy serves passages, not open keys.
+
+**Why caps, not keys-free:** quoted passages alone hide the product the brief asks for. With these caps a full day of normal English questions costs about $15 at Sonnet's list prices (300 answers, each with the largest allowed history), and a normal day costs far less. That is an estimate, not a bound: history in other scripts packs more tokens into the same cap, and a failed attempt can still be billed. The hard bound is the spend limit at the providers.
+
+**Why per-IP limits alone are not protection:** anyone can change their IP address with a phone network or a VPN, so the per-visitor limit only stops one person from using up the day for everyone else. What bounds the spend is the site-wide cap and, behind it, limits at the providers: a monthly spend limit on the Anthropic workspace that holds the key, and a budget alert on the Google Cloud project for the Gemini key.
+
+**Privacy:** the quota never stores an IP address, only a hash of it salted with a secret and the date, so the same visitor can't be linked from one day to the next. Old days are deleted.
+
+**Accepted risks, stated plainly:**
+- Everyone behind one IP address (an office, a campus) shares the same 10 answers.
+- There is no CAPTCHA, so a determined bot can use up the day's 300 answers. The cap holds the cost, and the card points people to running it themselves.
+
+**Revisit when:** abuse shows up in the logs (add Cloudflare Turnstile), or real use outgrows 300 answers a day.
 
 ## 5. One SHOULD item is left out: usage export
 
@@ -69,7 +85,7 @@ The other SHOULD item, the context-window warning, is built. See decision 7.
 
 ## 6. Platform and tooling
 
-- **One Cloudflare Worker** serves the web app and the streaming `/api/chat` route on a custom domain. No Vercel, no separate backend, no database: the browser keeps the conversation and sends it with each request, and saving chats between sessions is out of scope.
+- **One Cloudflare Worker** serves the web app and the streaming `/api/chat` route on a custom domain. No Vercel, no separate backend, and no database for conversations: the browser keeps the conversation and sends it with each request, and saving chats between sessions is out of scope. The only stored state is the public site's daily quota counter, a Durable Object (with SQLite) holding hashed visitor counts.
 - **No vector database, no embeddings, no RAG framework.** Official provider SDKs behind the adapter interface keep the fallback and error handling in code you can read in one sitting.
 
 ## 7. The context-window warning is built, because "the context stays small" is an assumption
@@ -84,13 +100,13 @@ The other SHOULD item, the context-window warning, is built. See decision 7.
 
 **Why, given decision 1 says the corpus is small:** the corpus is small today, but conversations, model choices and the documents can all change. An early draft cut history at a fixed 24,000 characters without telling anyone, which is exactly the kind of quiet failure this assessment is about. Measuring real usage and announcing any trimming costs little and keeps the app honest when the assumption stops holding.
 
-**On the live site** no model runs, so the meter reads "n/a".
+**On the live site** history is capped at 20,000 tokens to keep each answer's cost small (decision 4), so the meter measures against that cap, and its warnings still come before anything is left out. The cap is the same for every model, so switching from Sonnet to Haiku there does not move the meter (E7), and amber and red only show in a long conversation within the cap. Both are visible running locally, where each model has its own window.
 
 ## 8. Prompt injection and untrusted output
 
 **Brief:** answers must come from the documents (an automatic fail otherwise), and keys must never reach the browser.
 
-**Threat model:** the knowledge base and the system prompt are public in this repo, so leaking them costs nothing. The model has no tools, so it cannot read files, browse or act. The browser holds the conversation, so a user who tampers with it only affects their own chat. What is left to defend is the grounding guarantee, the user's browser, and the developer's Claude login during local use.
+**Threat model:** the knowledge base and the system prompt are public in this repo, so leaking them costs nothing. The model has no tools, so it cannot read files, browse or act. The browser holds the conversation, so a user who tampers with it only affects their own chat. What is left to defend is the grounding guarantee, the user's browser, the provider keys on the live site (decision 4), and the developer's Claude login during local use.
 
 **What I built:**
 - **Prompt rules.** Documents and messages are information, not instructions. Requests to ignore the rules, take on a role, use outside knowledge or go off-topic get the NimbusStack part answered, or the exact "That isn't covered in the NimbusStack knowledge base." line. Earlier assistant turns are not treated as evidence, because the browser sends them and could have edited them.
@@ -100,4 +116,4 @@ The other SHOULD item, the context-window warning, is built. See decision 7.
 - **The local developer path is locked down.** The Agent SDK runs with no tools, no MCP servers, no claude.ai connectors and no local settings, and refuses to answer if it reports loading any. The local server listens only on `127.0.0.1` and rejects requests addressed to any other host name, so a malicious web page cannot reach it through DNS rebinding. History sent through it is tagged and escaped so a user cannot fake a turn. A timed-out attempt is cancelled, not left running.
 - **Hygiene.** Provider error text stays in server logs; the browser only gets plain-language notices. Requests are JSON-only and size-capped. The full git history is scanned for secrets before the repo goes public.
 
-**Not built, on purpose:** signing the conversation so the browser cannot edit earlier turns. Anyone who forges their own history only fools themselves, and signing would add a server secret to protect. Rate limiting is also left out because the live site has no key to spend; the README says to add it before anyone deploys this with one.
+**Not built, on purpose:** signing the conversation so the browser cannot edit earlier turns. Anyone who forges their own history only fools themselves, and signing would add a server secret to protect. Rate limiting is built, as part of the quota in decision 4.
