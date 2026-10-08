@@ -1,7 +1,8 @@
 // Public quota for the live site. Pure TypeScript with no Workers imports, so Node tests run all of it.
 // The Durable Object in quota-do.ts is a thin wrapper around QuotaLedger + SqlQuotaStore.
 
-export const PUBLIC_HISTORY_TOKENS = 20_000;     // history budget per request on the public site, in estimate tokens
+export const PUBLIC_HISTORY_TOKENS = 20_000;     // public history budget: UTF-8 bytes / 3 plus 4 per message (fitPublic), so at most 60,000 bytes
+export const PUBLIC_MAX_MESSAGES = 40;          // history messages per request on the public site (20 turns)
 export const PUBLIC_MAX_OUTPUT_TOKENS = 3_000;   // reply cap per request; the longest eval answer was 2,172 output tokens
 // Every public-quota default lives here. wrangler.json mirrors them: "vars" (QUOTA_PER_VISITOR_PER_DAY, QUOTA_SITE_PER_DAY,
 // which deployers may change) and "ratelimits" (the burst limit). Tests keep the committed values equal to these.
@@ -11,6 +12,7 @@ export const QUOTA_LIMITS = {
   burst: { limit: 3, period: 10 },     // requests per visitor per 10 seconds
   historyTokens: PUBLIC_HISTORY_TOKENS,
   maxOutputTokens: PUBLIC_MAX_OUTPUT_TOKENS,
+  maxMessages: PUBLIC_MAX_MESSAGES,
 } as const;
 
 export type ExhaustedReason = "visitor" | "site";
@@ -96,7 +98,12 @@ export class QuotaLedger implements Ledger {
   release(visitor: string, day: string): void {
     if (day < this.cleanedFor) return;   // that day is already gone
     this.roll(day);
-    for (const key of [visitor, SITE]) this.store.set(day, key, Math.max(0, this.store.get(day, key) - 1));
+    // Nothing to give back (e.g. a late release after the object restarted): write nothing.
+    if (this.store.get(day, visitor) <= 0) return;
+    for (const key of [visitor, SITE]) {
+      const n = this.store.get(day, key);
+      if (n > 0) this.store.set(day, key, n - 1);
+    }
   }
 }
 
@@ -138,10 +145,11 @@ export function createQuotaGate(o: { ledger: Ledger; burst: BurstLimiter; salt: 
   limits?: { perVisitor: number; siteWide: number }; now?: () => Date }): QuotaGate {
   const now = o.now ?? (() => new Date());
   const perVisitor = o.limits?.perVisitor ?? QUOTA_LIMITS.perVisitor;   // must match the ledger's limits
+  const siteWide = o.limits?.siteWide ?? QUOTA_LIMITS.siteWide;
   // The daily salt (UTC date + secret) means a stored hash cannot be linked to the same visitor on another day.
   const visitor = (ip: string, day: string) => sha256Hex(`${day}:${o.salt}:${ip}`);
   const view = (r: LedgerResult): QuotaView =>
-    ({ limit: perVisitor, remaining: r.reason === "site" ? 0 : Math.max(0, perVisitor - r.visitorUsed), exhausted: r.reason });
+    ({ limit: perVisitor, remaining: r.reason === "site" || r.siteUsed >= siteWide ? 0 : Math.max(0, perVisitor - r.visitorUsed), exhausted: r.reason });
   return {
     async allowBurst(ip) { return (await o.burst.limit({ key: ip })).success; },
     async peek(ip) { const day = utcDay(now()); return view(await o.ledger.peek(await visitor(ip, day), day)); },

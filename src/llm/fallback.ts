@@ -2,7 +2,7 @@ import { SECTION_IDS, getSection } from "../kb";
 import type { Section } from "../kb/sections";
 import { extractCitations } from "./citations";
 import type { ModelConfig } from "./config";
-import { estimateTokens, fitToWindow, historyBudget } from "./context";
+import { estimateTokens, fitPublic, fitToWindow, historyBudget } from "./context";
 import { costUsd } from "./cost";
 import { noticeFor, trimmedNotice } from "./notices";
 import { sourcesOnlyEvents } from "./sources-only";
@@ -12,7 +12,7 @@ export interface ChainLink { model: ModelConfig; adapter: Adapter }
 export interface RunChainOptions {
   links: ChainLink[]; skipped: Notice[]; system: string; messages: ChatMessage[];
   query: string; signal: AbortSignal; firstTokenTimeoutMs?: number; sections?: Section[];
-  limits?: { historyTokens: number; maxOutputTokens: number };   // public site only (the quota); absent means no caps
+  limits?: { historyTokens: number; maxOutputTokens: number; maxMessages: number };   // public site only (the quota); absent means no caps
 }
 
 // `deadline` is an absolute time (ms since epoch) fixed when the link starts, so non-text chunks cannot stretch it.
@@ -38,9 +38,13 @@ export async function* runChain(o: RunChainOptions): AsyncGenerator<ChatEvent> {
     let streamed = false;
     let usage: Usage = ZERO_USAGE;
     // Each link gets history fitted to its own window (a smaller backup model may need more trimming).
-    const windowBudget = historyBudget(model, systemTokens);
-    const capped = o.limits !== undefined && o.limits.historyTokens < windowBudget;
-    const fit = fitToWindow(o.messages, capped ? o.limits!.historyTokens : windowBudget);
+    let fit = fitToWindow(o.messages, historyBudget(model, systemTokens));
+    let capped = false;   // the public site's hard bound (bytes, message count) trimmed, not the model's window
+    if (o.limits) {
+      const pub = fitPublic(fit.messages, o.limits.historyTokens, o.limits.maxMessages);
+      capped = pub.dropped > 0;
+      fit = { messages: pub.messages, dropped: fit.dropped + pub.dropped };
+    }
     // Each link gets its own abort signal, so a timed-out or failed attempt is really cancelled (not left spending).
     const linkAc = new AbortController();
     const onAbort = () => linkAc.abort();

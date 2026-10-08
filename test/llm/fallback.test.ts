@@ -165,7 +165,7 @@ describe("runChain", () => {
     const a = fakeAdapter({ chunks: ["ok [vault.md#pricing]"] });
     const messages = [{ role: "user" as const, content: "Compare all products" }, { role: "assistant" as const, content: "y".repeat(90_000) },
       { role: "user" as const, content: "what about its SLA?" }];
-    const evs = await run([{ model: sonnet, adapter: a }], { messages, limits: { historyTokens: 20_000, maxOutputTokens: 3_000 } });
+    const evs = await run([{ model: sonnet, adapter: a }], { messages, limits: { historyTokens: 20_000, maxOutputTokens: 3_000, maxMessages: 40 } });
     expect(a.lastReq!.maxOutputTokens).toBe(3_000);
     expect(a.lastReq!.messages).toEqual([{ role: "user", content: "what about its SLA?" }]);   // 30,000 estimate tokens > 20,000
     expect((evs.at(-1) as Extract<ChatEvent, { type: "done" }>).notices).toEqual([{ kind: "context",
@@ -179,7 +179,7 @@ describe("runChain", () => {
   it("passes the public reply cap to every link, including a fallback", async () => {
     const first = fakeAdapter({ failWith: "unavailable" });
     const second = fakeAdapter({ chunks: ["ok"] });
-    await run([{ model: sonnet, adapter: first }, { model: haiku, adapter: second }], { limits: { historyTokens: 20_000, maxOutputTokens: 3_000 } });
+    await run([{ model: sonnet, adapter: first }, { model: haiku, adapter: second }], { limits: { historyTokens: 20_000, maxOutputTokens: 3_000, maxMessages: 40 } });
     expect(first.lastReq!.maxOutputTokens).toBe(3_000);
     expect(second.lastReq!.maxOutputTokens).toBe(3_000);
   });

@@ -7,7 +7,7 @@ import { estimateTokens, publicContextWindow } from "../llm/context";
 import { type ChainLink, runChain } from "../llm/fallback";
 import { NO_VISITOR_NOTICE, QUOTA_PAUSED_NOTICE, quotaNotice, skippedNotice } from "../llm/notices";
 import { buildSystemPrompt } from "../llm/prompt";
-import { ipKey, PUBLIC_HISTORY_TOKENS, PUBLIC_MAX_OUTPUT_TOKENS, QUOTA_LIMITS, type QuotaGate, type QuotaView, type Reservation } from "./quota";
+import { ipKey, PUBLIC_HISTORY_TOKENS, PUBLIC_MAX_MESSAGES, PUBLIC_MAX_OUTPUT_TOKENS, QUOTA_LIMITS, type QuotaGate, type QuotaView, type Reservation } from "./quota";
 import { SECURITY_HEADERS } from "./security";
 import type { Adapter, AdapterRegistry, ChatMessage, Notice } from "../llm/types";
 
@@ -24,6 +24,7 @@ export const LIMITS = { maxQuestionChars: 2000, maxMessageChars: 200_000, maxBod
 const SYSTEM = buildSystemPrompt(SECTIONS);
 const SYSTEM_TOKENS = estimateTokens(SYSTEM);
 const BURST_MESSAGE = "You're sending questions quickly. Wait a few seconds and try again.";
+const BUSY_MESSAGE = "The service is busy right now. Try again in a moment.";
 
 function parseBody(body: unknown, config: ModelsConfig): { model: ModelConfig; messages: ChatMessage[] } | string {
   const b = body as { modelId?: unknown; messages?: unknown };
@@ -91,8 +92,13 @@ export function createApp(deps: AppDeps = {}): Hono {
     // Burst limit first, so floods are cheap to refuse.
     const quota = deps.quota;
     const ip = quota ? ipKey(c.req.header("cf-connecting-ip")) : null;
-    if (quota && ip && !(await quota.allowBurst(ip))) {
-      return c.json({ error: BURST_MESSAGE }, 429, { "Retry-After": String(QUOTA_LIMITS.burst.period) });
+    if (quota && ip) {
+      let allowed: boolean;
+      try { allowed = await quota.allowBurst(ip); } catch (err) {
+        console.error("[quota] burst limiter failed", err);   // fail closed: no model call
+        return c.json({ error: BUSY_MESSAGE }, 503);
+      }
+      if (!allowed) return c.json({ error: BURST_MESSAGE }, 429, { "Retry-After": String(QUOTA_LIMITS.burst.period) });
     }
     if (!(c.req.header("content-type") ?? "").startsWith("application/json")) return c.json({ error: "Expected JSON." }, 415);
     let body: unknown;
@@ -139,7 +145,9 @@ export function createApp(deps: AppDeps = {}): Hono {
       }
       // No model available (no keys): no reservation and no quota fields, so no misleading "10 of 10 left".
     }
-    const limits = quota ? { historyTokens: PUBLIC_HISTORY_TOKENS, maxOutputTokens: PUBLIC_MAX_OUTPUT_TOKENS } : undefined;
+    const limits = quota
+      ? { historyTokens: PUBLIC_HISTORY_TOKENS, maxOutputTokens: PUBLIC_MAX_OUTPUT_TOKENS, maxMessages: PUBLIC_MAX_MESSAGES }
+      : undefined;
 
     const messages = parsed.messages;          // fitted per model inside runChain
     const query = messages[messages.length - 1].content;
@@ -148,12 +156,14 @@ export function createApp(deps: AppDeps = {}): Hono {
       stream.onAbort(() => ac.abort());
       // A client that disconnects mid-answer keeps its reservation: a model was already called.
       let modelAnswered = false;
+      let modelStreamed = false;   // some model sent text, so it was billed: an unexpected error keeps the reservation
       try {
         for await (const ev of runChain({ links, skipped, system: SYSTEM, messages, query, signal: ac.signal,
           firstTokenTimeoutMs: deps.firstTokenTimeoutMs, limits })) {
           // Backstop: onAbort already aborts the chain; this also stops writing if a late event slips through.
           if (stream.aborted || ac.signal.aborted) break;
           let out = ev;
+          if (ev.type === "delta") modelStreamed = true;
           if (ev.type === "done") {
             modelAnswered = ev.answeredBy !== "sources-only";
             if (reservation?.ok && !modelAnswered) {        // total failure: give the answer back
@@ -165,7 +175,7 @@ export function createApp(deps: AppDeps = {}): Hono {
           await stream.writeSSE({ event: out.type, data: JSON.stringify(out) });
         }
       } catch (err) {
-        if (reservation?.ok && !modelAnswered) await reservation.release().catch(() => {});
+        if (reservation?.ok && !modelAnswered && !modelStreamed) await reservation.release().catch(() => {});
         if (stream.aborted) return;
         console.error("[chat] unexpected", err);
         await stream.writeSSE({ event: "error", data: JSON.stringify({ type: "error", message: "Something went wrong on our side. Please try again." }) });

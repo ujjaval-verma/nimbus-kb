@@ -57,6 +57,15 @@ describe("QuotaLedger", () => {
     expect(l.peek("v", DAY1)).toMatchObject({ ok: true, visitorUsed: 0, siteUsed: 0 });
   });
 
+  it("a release with nothing to give back writes nothing (a late release after the object was evicted)", () => {
+    const { l, store } = make();
+    l.release("v", DAY1);
+    expect(store.rows.size).toBe(0);
+    l.reserve("w", DAY1);
+    l.release("v", DAY1);   // v has nothing reserved: v's row is not created, the site count is untouched
+    expect([...store.rows.entries()]).toEqual([[`${DAY1}|w`, 1], [`${DAY1}|site`, 1]]);
+  });
+
   it("resets at the UTC day boundary and deletes the old day's rows", () => {
     const { l, store } = make();
     for (let i = 0; i < N; i++) l.reserve("v", DAY1);
@@ -126,6 +135,12 @@ describe("createQuotaGate", () => {
       burst: { limit: async () => ({ success: true }) }, now: () => new Date("2026-10-07T12:00:00Z") });
     await g.reserve("198.51.100.1");
     expect(await g.peek("198.51.100.2")).toEqual({ limit: 5, remaining: 0, exhausted: "site" });
+  });
+
+  it("reports nothing left when a reservation takes the last site-wide answer", async () => {
+    const g = createQuotaGate({ ledger: new QuotaLedger(new MemoryQuotaStore(), { perVisitor: 5, siteWide: 1 }), limits: { perVisitor: 5, siteWide: 1 },
+      salt: "s", burst: { limit: async () => ({ success: true }) }, now: () => new Date("2026-10-07T12:00:00Z") });
+    expect(await g.reserve("198.51.100.1")).toMatchObject({ ok: true, remaining: 0 });
   });
 
   it("reports what is left and releases at most once", async () => {

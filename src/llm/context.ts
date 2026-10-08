@@ -36,3 +36,43 @@ export function fitToWindow(messages: ChatMessage[], budgetTokens: number): { me
 export function publicContextWindow(systemTokens: number, historyTokens: number): number {
   return Math.ceil((systemTokens + historyTokens) / TRIM_AT);
 }
+
+// The public site's history bound. estimateTokens counts UTF-16 units, so text that is several bytes per unit (CJK,
+// emoji, combining marks) or many tiny messages could carry far more real tokens than it counts. Provider tokenizers
+// are byte-level (at most one token per UTF-8 byte), so the public path measures bytes: bytes / 3 plus a per-message
+// overhead, against PUBLIC_HISTORY_TOKENS, with a cap on the number of messages. The real-token ceiling is then
+// 3 x PUBLIC_HISTORY_TOKENS whatever the text is.
+export const PUBLIC_MESSAGE_OVERHEAD = 4;
+const utf8 = new TextEncoder();
+export function publicTokens(text: string): number {
+  return Math.ceil(utf8.encode(text).length / CHARS_PER_TOKEN) + PUBLIC_MESSAGE_OVERHEAD;
+}
+
+// Empty or whitespace-only turns carry nothing, and an empty assistant turn is an API error. Drop each with its other
+// half (an empty answer with its question, an empty question with its answer) so roles keep alternating.
+function dropEmptyTurns(messages: ChatMessage[]): ChatMessage[] {
+  const keep = messages.map(() => true);
+  messages.forEach((m, i) => {
+    if (m.content.trim() !== "") return;
+    keep[i] = false;
+    if (m.role === "assistant" && messages[i - 1]?.role === "user") keep[i - 1] = false;
+    if (m.role === "user" && messages[i + 1]?.role === "assistant") keep[i + 1] = false;
+  });
+  const out = messages.filter((_, i) => keep[i]);
+  return out.filter((m, i) => out[i + 1]?.role !== m.role);   // any leftover run of one role: keep its last message
+}
+
+// Public path only. Same contract as fitToWindow: newest first, the current question always kept, starts on a user
+// turn. `dropped` counts only messages trimmed for size or count (empty turns are not news to the user).
+export function fitPublic(messages: ChatMessage[], budgetTokens: number, maxMessages: number): { messages: ChatMessage[]; dropped: number } {
+  const clean = dropEmptyTurns(messages);
+  const out: ChatMessage[] = [];
+  let used = 0;
+  for (let i = clean.length - 1; i >= 0; i--) {
+    used += publicTokens(clean[i].content);
+    if ((used > budgetTokens || out.length >= maxMessages) && out.length > 0) break;
+    out.unshift(clean[i]);
+  }
+  while (out.length > 1 && out[0].role !== "user") out.shift();
+  return { messages: out, dropped: clean.length - out.length };
+}

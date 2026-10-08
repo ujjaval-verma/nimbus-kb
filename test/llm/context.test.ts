@@ -1,7 +1,7 @@
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { SECTIONS } from "../../src/kb";
 import { CONFIG } from "../../src/llm/config";
-import { CHARS_PER_TOKEN, estimateTokens, fitToWindow, historyBudget, MAX_OUTPUT_TOKENS } from "../../src/llm/context";
+import { CHARS_PER_TOKEN, estimateTokens, fitPublic, fitToWindow, historyBudget, MAX_OUTPUT_TOKENS, PUBLIC_MESSAGE_OVERHEAD, publicTokens } from "../../src/llm/context";
 import { buildSystemPrompt } from "../../src/llm/prompt";
 
 const u = (content: string) => ({ role: "user" as const, content });
@@ -39,4 +39,31 @@ it("drops a leading assistant message after a trim so history starts on a user t
   expect(r.messages[0].role).toBe("user");
   expect(r.messages).toEqual([u("c"), a("d"), u("e")]);
   expect(r.dropped).toBe(2);
+});
+
+describe("fitPublic (the public site's hard history bound)", () => {
+  it("measures UTF-8 bytes, so multi-byte text cannot slip past the cap", () => {
+    const cjk = "漢".repeat(25_000);   // 25,000 UTF-16 units (estimate 8,334) but 75,000 bytes (25,000 public tokens)
+    expect(estimateTokens(cjk)).toBeLessThan(20_000);
+    expect(publicTokens(cjk)).toBe(25_000 + PUBLIC_MESSAGE_OVERHEAD);
+    expect(publicTokens("😀")).toBe(2 + PUBLIC_MESSAGE_OVERHEAD);   // 4 bytes
+    const r = fitPublic([u("Compare all products"), a(cjk), u("and its SLA?")], 20_000, 40);
+    expect(r).toEqual({ messages: [u("and its SLA?")], dropped: 2 });
+  });
+
+  it("counts a per-message overhead and caps the number of messages, oldest first", () => {
+    const many = Array.from({ length: 101 }, (_, i) => (i % 2 === 0 ? u("a") : a("b")));
+    const r = fitPublic(many, 20_000, 40);
+    expect(r.messages.length).toBeLessThanOrEqual(40);
+    expect(r.messages[0].role).toBe("user");
+    expect(r.messages.at(-1)).toBe(many.at(-1));
+    expect(r.dropped).toBe(101 - r.messages.length);
+    // The overhead alone trims: 10 tiny messages cost 10 x (1 + overhead) tokens.
+    expect(fitPublic(many.slice(-11), 3 * (1 + PUBLIC_MESSAGE_OVERHEAD), 40).messages).toHaveLength(3);
+  });
+
+  it("drops empty or whitespace-only turns without counting them as trimmed, keeping roles alternating", () => {
+    const msgs = [u("Vault pricing"), a(""), u("What about Relay?"), a("Relay is $49"), u(" \n\t "), a("stray"), u("and Pulse?")];
+    expect(fitPublic(msgs, 20_000, 40)).toEqual({ messages: [u("What about Relay?"), a("Relay is $49"), u("and Pulse?")], dropped: 0 });
+  });
 });

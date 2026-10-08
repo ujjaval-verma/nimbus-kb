@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { publicContextWindow } from "../../src/llm/context";
-import type { ChatEvent } from "../../src/llm/types";
+import { type Adapter, type ChatEvent, type ErrorKind, ProviderError } from "../../src/llm/types";
 import { createApp } from "../../src/server/app";
-import { createQuotaGate, MemoryQuotaStore, PUBLIC_HISTORY_TOKENS, PUBLIC_MAX_OUTPUT_TOKENS, QUOTA_LIMITS, QuotaLedger } from "../../src/server/quota";
+import { createQuotaGate, MemoryQuotaStore, PUBLIC_HISTORY_TOKENS, PUBLIC_MAX_MESSAGES, PUBLIC_MAX_OUTPUT_TOKENS, QUOTA_LIMITS, QuotaLedger } from "../../src/server/quota";
 import { fakeAdapter } from "../helpers/fake-adapter";
 import { readEvents } from "../helpers/sse";
 
@@ -119,6 +119,80 @@ describe("public quota on /api/chat (Review Focus 6)", () => {
     expect(adapter.lastReq!.maxOutputTokens).toBeUndefined();
     expect(adapter.lastReq!.messages).toHaveLength(3);
     expect(d.quota).toBeUndefined();
+  });
+});
+
+describe("public quota: hard history bound and reservation edge cases", () => {
+  it("measures history in UTF-8 bytes: multi-byte text under the character estimate is still trimmed", async () => {
+    const adapter = fakeAdapter({ chunks: ["ok [vault.md#pricing]"] });
+    const cjk = "漢".repeat(25_000);   // 8,334 estimate tokens, 75,000 bytes
+    const d = await done(await ask(createApp({ registry: { anthropic: adapter }, quota: quota() }),
+      { messages: [{ role: "user", content: "Compare all products" }, { role: "assistant", content: cjk }, { role: "user", content: "what about its SLA?" }] }));
+    expect(adapter.lastReq!.messages).toEqual([{ role: "user", content: "what about its SLA?" }]);
+    expect(d.notices).toEqual([expect.objectContaining({ kind: "context", text: expect.stringMatching(/this public site allows/) })]);
+    const local = fakeAdapter({ chunks: ["ok"] });   // no quota (Node, tests): unchanged, the whole history is sent
+    await done(await ask(createApp({ registry: { anthropic: local } }), { messages: [{ role: "user", content: "a" }, { role: "assistant", content: cjk }, { role: "user", content: "b" }] }));
+    expect(local.lastReq!.messages).toHaveLength(3);
+  });
+
+  it("caps the number of history messages, however small they are", async () => {
+    const adapter = fakeAdapter({ chunks: ["ok"] });
+    const many: Msg[] = Array.from({ length: 201 }, (_, i) => ({ role: i % 2 === 0 ? "user" : "assistant", content: i % 2 === 0 ? "q" : "a" }));
+    const d = await done(await ask(createApp({ registry: { anthropic: adapter }, quota: quota() }), { messages: many }));
+    expect(adapter.lastReq!.messages.length).toBeLessThanOrEqual(PUBLIC_MAX_MESSAGES);
+    expect(adapter.lastReq!.messages.length).toBeGreaterThanOrEqual(PUBLIC_MAX_MESSAGES - 1);
+    expect(d.notices).toEqual([expect.objectContaining({ kind: "context" })]);
+  });
+
+  it("drops empty earlier turns instead of rejecting the request", async () => {
+    const adapter = fakeAdapter({ chunks: ["ok"] });
+    const res = await ask(createApp({ registry: { anthropic: adapter }, quota: quota() }), { messages: [
+      { role: "user", content: "Vault pricing" }, { role: "assistant", content: "" },
+      { role: "user", content: "What about Relay?" }, { role: "assistant", content: "Relay Pro is $49 [relay.md#pricing]" },
+      { role: "user", content: "  \n " }, { role: "assistant", content: "stray" }, { role: "user", content: "and Pulse?" }] });
+    expect(res.status).toBe(200);
+    const d = await done(res);
+    expect(adapter.lastReq!.messages).toEqual([{ role: "user", content: "What about Relay?" },
+      { role: "assistant", content: "Relay Pro is $49 [relay.md#pricing]" }, { role: "user", content: "and Pulse?" }]);
+    expect(d.notices).toEqual([]);
+  });
+
+  it("a client that disconnects after the first text keeps its reservation (a model was called)", async () => {
+    const g = quota();
+    const hanging: Adapter = { name: "hang", tested: true, async *stream(req) {
+      yield { type: "delta", text: "Pro is" };
+      await new Promise((r) => req.signal.addEventListener("abort", r, { once: true }));
+      throw new ProviderError("unavailable", "aborted");
+    } };
+    const res = await ask(createApp({ registry: { anthropic: hanging }, quota: g }));
+    const reader = res.body!.getReader();
+    let seen = "";
+    while (!seen.includes("event: delta")) seen += new TextDecoder().decode((await reader.read()).value);
+    await reader.cancel();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(await g.peek(IP)).toMatchObject({ remaining: N - 1 });
+  });
+
+  it("an unexpected error before any text gives the answer back; after text it does not (the model was billed)", async () => {
+    const bogus = "not-a-kind" as ErrorKind;   // makes runChain itself throw, past its own error handling
+    const g1 = quota();
+    const before = await readEvents(await ask(createApp({ registry: { anthropic: fakeAdapter({ failWith: bogus }) }, quota: g1 })));
+    expect(before.at(-1)).toMatchObject({ type: "error" });
+    expect(await g1.peek(IP)).toMatchObject({ remaining: N });
+    const g2 = quota();
+    const after = await readEvents(await ask(createApp({ registry: { anthropic: fakeAdapter({ chunks: ["partial"], failWith: bogus }) }, quota: g2 })));
+    expect(after.map((e) => e.type)).toContain("delta");
+    expect(after.at(-1)).toMatchObject({ type: "error" });
+    expect(await g2.peek(IP)).toMatchObject({ remaining: N - 1 });
+  });
+
+  it("a failing burst limiter answers 503 in plain language and calls no model", async () => {
+    const adapter = fakeAdapter({ chunks: ["ok"] });
+    const g = { ...quota(), allowBurst: async () => { throw new Error("limiter down"); } };
+    const res = await ask(createApp({ registry: { anthropic: adapter }, quota: g }));
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "The service is busy right now. Try again in a moment." });
+    expect(adapter.calls).toBe(0);
   });
 });
 
