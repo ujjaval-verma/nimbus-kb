@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchModels, streamChat, type ModelsResponse } from "./api";
-import { contextUsage, meterModel } from "./context";
+import { contextUsage, effectiveWindow, meterModel } from "./context";
 import { applyEvent, historyFor, totals, type Turn } from "./session";
 import { Banner } from "./components/Banner";
 import { Composer } from "./components/Composer";
@@ -8,6 +8,7 @@ import { ContextMeter } from "./components/ContextMeter";
 import { EmptyState } from "./components/EmptyState";
 import { Message } from "./components/Message";
 import { ModelPicker } from "./components/ModelPicker";
+import { QuotaPill } from "./components/QuotaPill";
 import { UsagePill } from "./components/UsagePill";
 
 const NEAR_BOTTOM_PX = 120;
@@ -18,10 +19,13 @@ export function App() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [modelId, setModelId] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
+  const [quota, setQuota] = useState<{ limit: number; remaining: number } | null>(null);   // public site only
   const abortRef = useRef<AbortController | null>(null);
   const stick = useRef(true);   // true while the reader is within 120px of the bottom
 
-  useEffect(() => { fetchModels().then(setMeta).catch(() => setLoadFailed(true)); }, []);
+  useEffect(() => {
+    fetchModels().then((m) => { setMeta(m); setQuota(m.quota); }).catch(() => setLoadFailed(true));
+  }, []);
   useEffect(() => {
     const onScroll = () => { stick.current = distanceFromBottom() < NEAR_BOTTOM_PX; };
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -45,7 +49,10 @@ export function App() {
     const update = (fn: (t: Turn) => Turn) => setTurns((ts) => ts.map((t) => (t.id === id ? fn(t) : t)));
     const body = { modelId: selectedId, messages: historyFor(turns, question) };
     setTurns((ts) => [...ts, { id, question, answer: "", status: "streaming", failed: [] }]);
-    streamChat(body, (e) => update((t) => applyEvent(t, e)), ac.signal)
+    streamChat(body, (e) => {
+      if (e.type === "done" && e.quota) setQuota(e.quota);
+      update((t) => applyEvent(t, e));
+    }, ac.signal)
       .catch(() => {
         if (ac.signal.aborted) return;
         update((t) => applyEvent(t, { type: "error", message: "Lost the connection. Please try again." }));
@@ -70,7 +77,10 @@ export function App() {
 
   const anyAvailable = meta.models.some((m) => m.available);
   const metered = meterModel(meta.models, selectedId, meta.fallbackOrder);
-  const usage = contextUsage({ turns, contextWindow: metered.contextWindow, systemPromptTokens: meta.systemPromptTokens, thresholds: meta.contextWarning });
+  const meterWindow = effectiveWindow(metered.contextWindow, meta.contextCap);
+  const capped = meterWindow < metered.contextWindow;   // the public site's history cap is the limit, not the model's window
+  const usage = contextUsage({ turns, contextWindow: meterWindow, systemPromptTokens: meta.systemPromptTokens, thresholds: meta.contextWarning });
+  const of = capped ? "of the context this public site allows" : `of ${metered.name}'s context window`;
   const pct = Math.min(100, Math.round(usage.ratio * 100));
   const sum = totals(turns);
 
@@ -83,9 +93,10 @@ export function App() {
         </div>
         <ModelPicker models={meta.models} value={selectedId} onChange={setModelId} />
         <div className="top-row">
-          <ContextMeter available={anyAvailable} modelName={metered.name} tokens={usage.tokens} contextWindow={metered.contextWindow}
-            ratio={usage.ratio} level={usage.level} />
+          <ContextMeter available={anyAvailable} modelName={metered.name} tokens={usage.tokens} contextWindow={meterWindow}
+            ratio={usage.ratio} level={usage.level} capped={capped} />
           <UsagePill {...sum} />
+          <QuotaPill quota={quota} />
         </div>
       </header>
 
@@ -94,8 +105,8 @@ export function App() {
         <div className={`callout ${usage.level === "red" ? "danger" : "warn"}`} role="status">
           <p>
             {usage.level === "amber"
-              ? `This conversation uses ${pct}% of ${metered.name}'s context window. Near the limit, earlier messages get left out of answers. Start a new chat soon.`
-              : `This conversation uses ${pct}% of ${metered.name}'s context window. Earlier messages will soon be left out of answers. Start a new chat.`}
+              ? `This conversation uses ${pct}% ${of}. Near the limit, earlier messages get left out of answers. Start a new chat soon.`
+              : `This conversation uses ${pct}% ${of}. Earlier messages will soon be left out of answers. Start a new chat.`}
           </p>
           <button type="button" onClick={newConversation}>Start a new chat</button>
         </div>

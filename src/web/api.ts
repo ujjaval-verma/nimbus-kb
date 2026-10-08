@@ -3,7 +3,9 @@ import type { ChatEvent, ChatMessage } from "../llm/types";
 import { parseSSE } from "./sse";
 
 export interface ModelInfo extends ModelConfig { available: boolean; tested: boolean }
-export interface ModelsResponse { fallbackOrder: string[]; contextWarning: { amber: number; red: number }; systemPromptTokens: number; models: ModelInfo[] }
+export interface ModelsResponse { fallbackOrder: string[]; contextWarning: { amber: number; red: number }; systemPromptTokens: number; models: ModelInfo[];
+  contextCap: number | null;   // public site: history is capped, and the meter measures against this window
+  quota: { limit: number; remaining: number } | null }
 
 export async function fetchModels(): Promise<ModelsResponse> {
   const r = await fetch("/api/models");

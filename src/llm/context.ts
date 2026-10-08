@@ -30,3 +30,9 @@ export function fitToWindow(messages: ChatMessage[], budgetTokens: number): { me
   while (out.length > 1 && out[0].role !== "user") out.shift();
   return { messages: out, dropped: messages.length - out.length };
 }
+
+// The window the UI meter should use when history is capped (public site): trimming then starts at exactly TRIM_AT of
+// it, the same place it starts for an uncapped model, so amber (75%) and red (90%) still come first.
+export function publicContextWindow(systemTokens: number, historyTokens: number): number {
+  return Math.ceil((systemTokens + historyTokens) / TRIM_AT);
+}

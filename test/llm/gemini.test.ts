@@ -6,6 +6,7 @@ import { MAX_OUTPUT_TOKENS } from "../../src/llm/context";
 import { costUsd } from "../../src/llm/cost";
 import { createGeminiAdapter, GEMINI_THINKING_LEVEL, type GeminiUsageMetadata, geminiUsage, mapGeminiError } from "../../src/llm/gemini";
 import type { AdapterChunk, AdapterRequest, Usage } from "../../src/llm/types";
+import { PUBLIC_MAX_OUTPUT_TOKENS } from "../../src/server/quota";
 import { loadFixture, replayFetch, type SeenRequest, sseData } from "../helpers/replay";
 
 const gemini = getModel("gemini-flash-lite")!;
@@ -61,8 +62,8 @@ describe("gemini adapter (replays recorded fixtures)", () => {
       generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS, thinkingConfig: { thinkingLevel: GEMINI_THINKING_LEVEL } },
     });
     const seenCapped: SeenRequest[] = [];
-    await collect(replay("stream-ok", seenCapped).stream(req({ maxOutputTokens: 1_000 })));
-    expect(seenCapped[0].body).toMatchObject({ generationConfig: { maxOutputTokens: 1_000 } });   // public reply cap (Task 13)
+    await collect(replay("stream-ok", seenCapped).stream(req({ maxOutputTokens: PUBLIC_MAX_OUTPUT_TOKENS })));
+    expect(seenCapped[0].body).toMatchObject({ generationConfig: { maxOutputTokens: PUBLIC_MAX_OUTPUT_TOKENS } });   // the public reply cap
   });
 
   it.each([

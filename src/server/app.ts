@@ -3,10 +3,11 @@ import { bodyLimit } from "hono/body-limit";
 import { streamSSE } from "hono/streaming";
 import { SECTIONS } from "../kb";
 import { CONFIG, type ModelConfig, type ModelsConfig } from "../llm/config";
-import { estimateTokens } from "../llm/context";
+import { estimateTokens, publicContextWindow } from "../llm/context";
 import { type ChainLink, runChain } from "../llm/fallback";
-import { skippedNotice } from "../llm/notices";
+import { NO_VISITOR_NOTICE, QUOTA_PAUSED_NOTICE, quotaNotice, skippedNotice } from "../llm/notices";
 import { buildSystemPrompt } from "../llm/prompt";
+import { ipKey, PUBLIC_HISTORY_TOKENS, PUBLIC_MAX_OUTPUT_TOKENS, QUOTA_LIMITS, type QuotaGate, type QuotaView, type Reservation } from "./quota";
 import { SECURITY_HEADERS } from "./security";
 import type { Adapter, AdapterRegistry, ChatMessage, Notice } from "../llm/types";
 
@@ -15,12 +16,14 @@ export interface AppDeps {
   wrapAdapter?: (modelId: string, adapter: Adapter) => Adapter;
   firstTokenTimeoutMs?: number;
   allowedHosts?: string[];   // Node entry only: blocks DNS rebinding against the local server
+  quota?: QuotaGate;   // Worker only: the public quota. Absent in the Node entry and in tests, which means no limits and no caps.
 }
 // No cap on the number of turns: runChain fits history to each model's window and announces any trimming.
 // The body cap only stops abuse; it is sized above the largest window's worth of text (a test checks this).
 export const LIMITS = { maxQuestionChars: 2000, maxMessageChars: 200_000, maxBodyBytes: 8_000_000 } as const;
 const SYSTEM = buildSystemPrompt(SECTIONS);
 const SYSTEM_TOKENS = estimateTokens(SYSTEM);
+const BURST_MESSAGE = "You're sending questions quickly. Wait a few seconds and try again.";
 
 function parseBody(body: unknown, config: ModelsConfig): { model: ModelConfig; messages: ChatMessage[] } | string {
   const b = body as { modelId?: unknown; messages?: unknown };
@@ -61,20 +64,36 @@ export function createApp(deps: AppDeps = {}): Hono {
 
   app.get("/api/health", (c) => c.json({ ok: true }));
 
-  app.get("/api/models", (c) => c.json({
-    fallbackOrder: config.fallbackOrder,
-    contextWarning: config.contextWarning,
-    systemPromptTokens: SYSTEM_TOKENS,
-    models: config.models.map((m) => {
-      const a = adapterFor(m);
-      return { ...m, available: !!a, tested: !!a?.tested };
-    }),
-  }));
+  app.get("/api/models", async (c) => {
+    const ip = deps.quota ? ipKey(c.req.header("cf-connecting-ip")) : null;
+    // The count only means something when a model can answer; a failed counter must not break the page.
+    const anyModel = config.models.some((m) => !!adapterFor(m));
+    const q = deps.quota && ip && anyModel
+      ? await deps.quota.peek(ip).catch((err: unknown) => { console.error("[quota] peek failed", err); return null; })
+      : null;
+    return c.json({
+      fallbackOrder: config.fallbackOrder,
+      contextWarning: config.contextWarning,
+      systemPromptTokens: SYSTEM_TOKENS,
+      contextCap: deps.quota ? publicContextWindow(SYSTEM_TOKENS, PUBLIC_HISTORY_TOKENS) : null,
+      quota: q ? { limit: q.limit, remaining: q.remaining } : null,
+      models: config.models.map((m) => {
+        const a = adapterFor(m);
+        return { ...m, available: !!a, tested: !!a?.tested };
+      }),
+    });
+  });
 
   app.post("/api/chat", bodyLimit({
     maxSize: LIMITS.maxBodyBytes,
     onError: (c) => c.json({ error: "This conversation is too large to send. Start a new chat." }, 413),
   }), async (c) => {
+    // Burst limit first, so floods are cheap to refuse.
+    const quota = deps.quota;
+    const ip = quota ? ipKey(c.req.header("cf-connecting-ip")) : null;
+    if (quota && ip && !(await quota.allowBurst(ip))) {
+      return c.json({ error: BURST_MESSAGE }, 429, { "Retry-After": String(QUOTA_LIMITS.burst.period) });
+    }
     if (!(c.req.header("content-type") ?? "").startsWith("application/json")) return c.json({ error: "Expected JSON." }, 415);
     let body: unknown;
     try { body = await c.req.json(); } catch { return c.json({ error: "Malformed request." }, 400); }
@@ -95,19 +114,58 @@ export function createApp(deps: AppDeps = {}): Hono {
     // Unconfigured backups only explain anything when no model can answer (a keyless deployment); otherwise they are noise on every reply.
     if (links.length === 0) skipped.push(...unconfigured);
 
+    // Public quota: a question that would reach a model reserves one answer first (atomic in the Durable Object).
+    let reservation: Reservation | null = null;
+    let quotaView: QuotaView | null = null;
+    if (quota) {
+      if (!ip) {
+        links.length = 0;                                    // fail closed: no visitor key, no model call
+        skipped.splice(0, skipped.length, NO_VISITOR_NOTICE);
+      } else if (links.length > 0) {
+        try {
+          reservation = await quota.reserve(ip);
+        } catch (err) {
+          console.error("[quota] reserve failed", err);   // fail closed: no counter, no model call
+          links.length = 0;
+          skipped.splice(0, skipped.length, QUOTA_PAUSED_NOTICE);
+        }
+        if (reservation) {
+          quotaView = reservation;
+          if (!reservation.ok) {
+            links.length = 0;
+            skipped.splice(0, skipped.length, quotaNotice(reservation.exhausted ?? "visitor", reservation.limit));
+          }
+        }
+      }
+      // No model available (no keys): no reservation and no quota fields, so no misleading "10 of 10 left".
+    }
+    const limits = quota ? { historyTokens: PUBLIC_HISTORY_TOKENS, maxOutputTokens: PUBLIC_MAX_OUTPUT_TOKENS } : undefined;
+
     const messages = parsed.messages;          // fitted per model inside runChain
     const query = messages[messages.length - 1].content;
     const ac = new AbortController();
     return streamSSE(c, async (stream) => {
       stream.onAbort(() => ac.abort());
+      // A client that disconnects mid-answer keeps its reservation: a model was already called.
+      let modelAnswered = false;
       try {
         for await (const ev of runChain({ links, skipped, system: SYSTEM, messages, query, signal: ac.signal,
-          firstTokenTimeoutMs: deps.firstTokenTimeoutMs })) {
+          firstTokenTimeoutMs: deps.firstTokenTimeoutMs, limits })) {
           // Backstop: onAbort already aborts the chain; this also stops writing if a late event slips through.
           if (stream.aborted || ac.signal.aborted) break;
-          await stream.writeSSE({ event: ev.type, data: JSON.stringify(ev) });
+          let out = ev;
+          if (ev.type === "done") {
+            modelAnswered = ev.answeredBy !== "sources-only";
+            if (reservation?.ok && !modelAnswered) {        // total failure: give the answer back
+              await reservation.release().catch((err: unknown) => console.error("[quota] release failed", err));
+              quotaView = { ...reservation, remaining: reservation.remaining + 1 };
+            }
+            if (quotaView) out = { ...ev, quota: { limit: quotaView.limit, remaining: quotaView.remaining } };
+          }
+          await stream.writeSSE({ event: out.type, data: JSON.stringify(out) });
         }
       } catch (err) {
+        if (reservation?.ok && !modelAnswered) await reservation.release().catch(() => {});
         if (stream.aborted) return;
         console.error("[chat] unexpected", err);
         await stream.writeSSE({ event: "error", data: JSON.stringify({ type: "error", message: "Something went wrong on our side. Please try again." }) });

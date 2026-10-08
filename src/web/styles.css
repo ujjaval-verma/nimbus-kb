@@ -84,3 +84,7 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+.quota-card { background: var(--accent-soft); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; margin: 8px 0; font-size: 14px; }
+.quota-card .quota-title { margin: 0 0 6px; font-weight: 600; }
+.quota-card ol { margin: 0; padding-left: 20px; }
+.quota-card code { font: 13px var(--mono); }

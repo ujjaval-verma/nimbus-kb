@@ -160,4 +160,27 @@ describe("runChain", () => {
     expect(done.notices.at(-1)).toEqual(SOURCES_ONLY_NOTICE);
     expect(done.notices[0].text).toContain("Claude Haiku 4.5");
   });
+
+  it("applies public limits: history capped with the usual notice, reply cap passed to the adapter", async () => {
+    const a = fakeAdapter({ chunks: ["ok [vault.md#pricing]"] });
+    const messages = [{ role: "user" as const, content: "Compare all products" }, { role: "assistant" as const, content: "y".repeat(90_000) },
+      { role: "user" as const, content: "what about its SLA?" }];
+    const evs = await run([{ model: sonnet, adapter: a }], { messages, limits: { historyTokens: 20_000, maxOutputTokens: 3_000 } });
+    expect(a.lastReq!.maxOutputTokens).toBe(3_000);
+    expect(a.lastReq!.messages).toEqual([{ role: "user", content: "what about its SLA?" }]);   // 30,000 estimate tokens > 20,000
+    expect((evs.at(-1) as Extract<ChatEvent, { type: "done" }>).notices).toEqual([{ kind: "context",
+      text: "2 earlier messages were left out so the conversation fits the length this public site allows. Start a new chat for a clean slate." }]);
+    const free = fakeAdapter({ chunks: ["ok"] });
+    await run([{ model: sonnet, adapter: free }], { messages });
+    expect(free.lastReq!.maxOutputTokens).toBeUndefined();
+    expect(free.lastReq!.messages).toHaveLength(3);
+  });
+
+  it("passes the public reply cap to every link, including a fallback", async () => {
+    const first = fakeAdapter({ failWith: "unavailable" });
+    const second = fakeAdapter({ chunks: ["ok"] });
+    await run([{ model: sonnet, adapter: first }, { model: haiku, adapter: second }], { limits: { historyTokens: 20_000, maxOutputTokens: 3_000 } });
+    expect(first.lastReq!.maxOutputTokens).toBe(3_000);
+    expect(second.lastReq!.maxOutputTokens).toBe(3_000);
+  });
 });

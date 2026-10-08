@@ -6,6 +6,7 @@ import { getModel } from "../../src/llm/config";
 import { MAX_OUTPUT_TOKENS } from "../../src/llm/context";
 import { costUsd } from "../../src/llm/cost";
 import type { AdapterChunk, AdapterRequest, Usage } from "../../src/llm/types";
+import { PUBLIC_MAX_OUTPUT_TOKENS } from "../../src/server/quota";
 import { loadFixture, replayFetch, type SeenRequest, sseData } from "../helpers/replay";
 
 const sonnet = getModel("claude-sonnet")!;
@@ -65,8 +66,8 @@ describe("claude-api adapter (replays recorded fixtures)", () => {
     expect(seenHaiku[0].body).toMatchObject({ model: "claude-haiku-4-5" });
     expect(seenHaiku[0].body).not.toHaveProperty("output_config");   // Haiku rejects effort
     const seenCapped: SeenRequest[] = [];
-    await collect(replay("stream-ok", seenCapped).stream(req({ maxOutputTokens: 1_000 })));
-    expect(seenCapped[0].body).toMatchObject({ max_tokens: 1_000 });   // the public quota's reply cap (Task 13)
+    await collect(replay("stream-ok", seenCapped).stream(req({ maxOutputTokens: PUBLIC_MAX_OUTPUT_TOKENS })));
+    expect(seenCapped[0].body).toMatchObject({ max_tokens: PUBLIC_MAX_OUTPUT_TOKENS });   // the public reply cap
   });
 
   it.each([

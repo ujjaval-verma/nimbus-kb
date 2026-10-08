@@ -12,6 +12,7 @@ export interface ChainLink { model: ModelConfig; adapter: Adapter }
 export interface RunChainOptions {
   links: ChainLink[]; skipped: Notice[]; system: string; messages: ChatMessage[];
   query: string; signal: AbortSignal; firstTokenTimeoutMs?: number; sections?: Section[];
+  limits?: { historyTokens: number; maxOutputTokens: number };   // public site only (the quota); absent means no caps
 }
 
 // `deadline` is an absolute time (ms since epoch) fixed when the link starts, so non-text chunks cannot stretch it.
@@ -37,7 +38,9 @@ export async function* runChain(o: RunChainOptions): AsyncGenerator<ChatEvent> {
     let streamed = false;
     let usage: Usage = ZERO_USAGE;
     // Each link gets history fitted to its own window (a smaller backup model may need more trimming).
-    const fit = fitToWindow(o.messages, historyBudget(model, systemTokens));
+    const windowBudget = historyBudget(model, systemTokens);
+    const capped = o.limits !== undefined && o.limits.historyTokens < windowBudget;
+    const fit = fitToWindow(o.messages, capped ? o.limits!.historyTokens : windowBudget);
     // Each link gets its own abort signal, so a timed-out or failed attempt is really cancelled (not left spending).
     const linkAc = new AbortController();
     const onAbort = () => linkAc.abort();
@@ -45,7 +48,8 @@ export async function* runChain(o: RunChainOptions): AsyncGenerator<ChatEvent> {
     let it: AsyncIterator<AdapterChunk> | undefined;
     const deadline = Date.now() + firstMs;
     try {
-      it = adapter.stream({ model, system: o.system, messages: fit.messages, signal: linkAc.signal })[Symbol.asyncIterator]();
+      it = adapter.stream({ model, system: o.system, messages: fit.messages, signal: linkAc.signal,
+        maxOutputTokens: o.limits?.maxOutputTokens })[Symbol.asyncIterator]();
       for (;;) {
         const r = await nextWithTimeout(it, streamed ? null : deadline, firstMs);
         if (o.signal.aborted) return;
@@ -59,7 +63,7 @@ export async function* runChain(o: RunChainOptions): AsyncGenerator<ChatEvent> {
         passages: citedIds.map((id) => toPassage(getSection(id)!)), invalidRefCount,
         uncited: citedIds.length === 0 && text.trim() !== NOT_COVERED,
         contextTokens: systemTokens + fit.messages.reduce((n, m) => n + estimateTokens(m.content), 0) + estimateTokens(text),
-        notices: fit.dropped > 0 ? [...notices, trimmedNotice(model.name, fit.dropped)] : notices,
+        notices: fit.dropped > 0 ? [...notices, trimmedNotice(capped ? null : model.name, fit.dropped)] : notices,
       };
       return;
     } catch (err) {

@@ -20,6 +20,23 @@ export const SOURCES_ONLY_NOTICE: Notice = {
   kind: "info",
   text: "No AI model could answer. These are the closest passages from the knowledge base, not a checked answer.",
 };
-export function trimmedNotice(modelName: string, dropped: number): Notice {
-  return { kind: "context", text: `${dropped} earlier message${dropped === 1 ? " was" : "s were"} left out so the conversation fits ${modelName}'s context window. Start a new chat for a clean slate.` };
+// modelName null: the public site's history cap did the trimming, not the model's window.
+export function trimmedNotice(modelName: string | null, dropped: number): Notice {
+  const fits = modelName === null ? "the length this public site allows" : `${modelName}'s context window`;
+  return { kind: "context", text: `${dropped} earlier message${dropped === 1 ? " was" : "s were"} left out so the conversation fits ${fits}. Start a new chat for a clean slate.` };
 }
+
+export function quotaNotice(reason: "visitor" | "site", limit: number): Notice {
+  return { kind: "quota_exhausted", text: reason === "visitor"
+    ? `You've used today's ${limit} answers. Run it yourself for unlimited answers.`
+    : "This demo has used all of today's answers. Run it yourself for unlimited answers." };
+}
+export const NO_VISITOR_NOTICE: Notice = {
+  kind: "unavailable",
+  text: "The AI models are off for this request, so these are the matching passages from the knowledge base.",
+};
+// The quota counter failed: fail closed.
+export const QUOTA_PAUSED_NOTICE: Notice = {
+  kind: "unavailable",
+  text: "The AI models are paused for a moment, so these are the matching passages from the knowledge base. Try again shortly.",
+};

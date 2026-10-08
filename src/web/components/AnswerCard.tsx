@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { Turn } from "../session";
 import { AnswerMarkdown } from "./AnswerMarkdown";
+import { QuotaCard } from "./QuotaCard";
 
 const NO_CITES = new Set<string>();
 
@@ -30,8 +31,9 @@ export function AnswerCard({ turn, nameOf }: { turn: Turn; nameOf: (id: string) 
   return (
     <article className="card answer">
       <div className="answer-head" aria-live="polite">{header}</div>
-      {d?.notices.map((n, i) => (
-        <p key={i} className={`callout ${n.kind === "info" ? "info" : "warn"}`}>{n.text}</p>
+      {d?.notices.map((n, i) => (n.kind === "quota_exhausted"
+        ? <QuotaCard key={i} notice={n} />
+        : <p key={i} className={`callout ${n.kind === "info" ? "info" : "warn"}`}>{n.text}</p>
       ))}
       {d?.uncited && (
         <p className="badge warn" title="This answer didn't cite any document from the knowledge base, so it may not come from them.">

@@ -29,3 +29,8 @@ export function meterModel(models: ModelInfo[], selectedId: string, fallbackOrde
   const found = ids.map((id) => models.find((m) => m.id === id)).find((m) => m?.available);
   return found ?? models.find((m) => m.id === selectedId) ?? models[0];
 }
+
+// On the public site history is capped well below the model's window; the meter measures against the smaller one.
+export function effectiveWindow(contextWindow: number, contextCap: number | null): number {
+  return contextCap === null ? contextWindow : Math.min(contextWindow, contextCap);
+}
