@@ -56,8 +56,10 @@ describe("claude-api adapter (replays recorded fixtures)", () => {
     const history = [{ role: "user" as const, content: "a" }, { role: "assistant" as const, content: "b" }, { role: "user" as const, content: "c" }];
     await collect(replay("stream-ok", seen).stream(req({ messages: history })));
     expect(seen[0].url).toContain("/v1/messages");
-    expect(seen[0].body).toMatchObject({ model: "claude-sonnet-5-5", max_tokens: MAX_OUTPUT_TOKENS, system: "SYS", stream: true,
+    expect(seen[0].body).toMatchObject({ model: "claude-sonnet-5-5", max_tokens: MAX_OUTPUT_TOKENS, stream: true,
       output_config: { effort: "low" }, messages: history });
+    // The system prompt is one cached block: repeat questions read it from the prompt cache at a tenth of the input price.
+    expect(seen[0].body.system).toEqual([{ type: "text", text: "SYS", cache_control: { type: "ephemeral" } }]);
     const seenHaiku: SeenRequest[] = [];
     await collect(replay("stream-ok", seenHaiku).stream(req({ model: haiku })));
     expect(seenHaiku[0].body).toMatchObject({ model: "claude-haiku-4-5" });

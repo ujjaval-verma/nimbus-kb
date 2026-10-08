@@ -33,7 +33,10 @@ export function createClaudeApiAdapter(opts: { apiKey: string; fetch?: typeof fe
     async *stream(req): AsyncIterable<AdapterChunk> {
       try {
         const stream = client.messages.stream(
-          { model: req.model.model, max_tokens: req.maxOutputTokens ?? MAX_OUTPUT_TOKENS, system: req.system, messages: req.messages,
+          { model: req.model.model, max_tokens: req.maxOutputTokens ?? MAX_OUTPUT_TOKENS,
+            // The system prompt (the whole knowledge base) is identical on every call, so it is cached: later calls within
+            // the cache lifetime read it at the cache-read price instead of the full input price.
+            system: [{ type: "text", text: req.system, cache_control: { type: "ephemeral" } }], messages: req.messages,
             ...(req.model.effort ? { output_config: { effort: req.model.effort } } : {}) },
           { signal: req.signal });
         for await (const e of stream) {

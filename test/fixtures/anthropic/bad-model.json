@@ -14,6 +14,6 @@
   "response": {
     "status": 404,
     "contentType": "application/json",
-    "body": "{\"type\":\"error\",\"error\":{\"type\":\"not_found_error\",\"message\":\"model: nimbus-kb-no-such-model\"},\"request_id\":\"req_011Cfp1bCPcWACnuwqfxWAr9\"}"
+    "body": "{\"type\":\"error\",\"error\":{\"type\":\"not_found_error\",\"message\":\"model: nimbus-kb-no-such-model\"},\"request_id\":\"req_011Cfp3pVc3UDzbrA8YD2YK2\"}"
   }
 }
