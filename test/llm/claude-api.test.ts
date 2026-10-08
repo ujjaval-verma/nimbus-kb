@@ -116,6 +116,24 @@ describe("claude-api adapter (replays recorded fixtures)", () => {
     expect((out.at(-1) as { usage: Usage }).usage).toEqual({ input: 11, output: 5, cacheRead: 700, cacheWrite: 30 });
   });
 
+  it("treats a stream that ends with no text (a refusal, an instant end_turn) as unavailable", async () => {
+    const msg = (stop: string) => sse([
+      { type: "message_start", message: { id: "m", type: "message", role: "assistant", model: "m", content: [], stop_reason: null, stop_sequence: null,
+        usage: { input_tokens: 5, output_tokens: 1 } } },
+      { type: "message_delta", delta: { stop_reason: stop, stop_sequence: null }, usage: { output_tokens: 1 } },
+      { type: "message_stop" }]);
+    await expect(collect(adapterFor(handBuilt(200, msg("refusal"))).stream(req()))).rejects.toMatchObject({ kind: "unavailable" });
+    const blank = sse([
+      { type: "message_start", message: { id: "m", type: "message", role: "assistant", model: "m", content: [], stop_reason: null, stop_sequence: null,
+        usage: { input_tokens: 5, output_tokens: 1 } } },
+      { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+      { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: " \n" } },
+      { type: "content_block_stop", index: 0 },
+      { type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 2 } },
+      { type: "message_stop" }]);
+    await expect(collect(adapterFor(handBuilt(200, blank)).stream(req()))).rejects.toMatchObject({ kind: "unavailable" });
+  });
+
   it("classifies a mid-stream error event by its error type", async () => {
     const body = sse([
       { type: "message_start", message: { id: "m", type: "message", role: "assistant", model: "m", content: [], stop_reason: null, stop_sequence: null,

@@ -72,6 +72,36 @@ describe("runChain", () => {
     expect(hung.lastReq!.signal.aborted).toBe(true);
   });
 
+  it("a stream that stalls after its first token times out as unavailable, resets, and moves on", async () => {
+    let cancelled = false;
+    const stalls: Adapter = {
+      name: "s", tested: true,
+      async *stream(req: AdapterRequest): AsyncIterable<AdapterChunk> {
+        req.signal.addEventListener("abort", () => { cancelled = true; });
+        yield { type: "delta", text: "partial " };
+        await new Promise(() => {});
+      },
+    };
+    const evs = await run([{ model: haiku, adapter: stalls }, { model: sonnet, adapter: fakeAdapter({ chunks: ["ok"] }) }], { idleTimeoutMs: 30, firstTokenTimeoutMs: 1000 });
+    expect(evs.map((e) => e.type)).toContain("reset");
+    expect(evs.find((e) => e.type === "reset")).toMatchObject({ failedModelId: "claude-haiku", kind: "unavailable" });
+    expect(evs.at(-1)).toMatchObject({ type: "done", answeredBy: "claude-sonnet" });
+    expect(cancelled).toBe(true);
+  });
+
+  it("a slow but steady stream is not cut off by the idle timeout", async () => {
+    const steady: Adapter = {
+      name: "s", tested: true,
+      async *stream(): AsyncIterable<AdapterChunk> {
+        for (let i = 0; i < 6; i++) { await new Promise((r) => setTimeout(r, 15)); yield { type: "delta", text: "x " }; }
+        yield { type: "usage", usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 } };
+      },
+    };
+    const evs = await run([{ model: haiku, adapter: steady }], { idleTimeoutMs: 60 });
+    expect(evs.at(-1)).toMatchObject({ type: "done", answeredBy: "claude-haiku" });
+    expect(evs.map((e) => e.type)).not.toContain("reset");
+  });
+
   it("does not call later links when the first succeeds", async () => {
     const second = fakeAdapter({ chunks: ["x"] });
     await run([{ model: haiku, adapter: fakeAdapter({ chunks: ["a"] }) }, { model: sonnet, adapter: second }]);

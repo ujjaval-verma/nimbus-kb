@@ -31,7 +31,9 @@ export function flattenHistory(messages: ChatMessage[]): string {
 // Subscription logins report "oauth" (or "none"); every other ApiKeySource in sdk.d.ts means a key-based login.
 const SUBSCRIPTION_KEY_SOURCES = new Set(["none", "oauth"]);
 // Credentials and endpoints that would send the call to the metered API instead of the subscription.
-const BILLING_ENV = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"];
+// That includes Bedrock, Vertex and Foundry routing, which would bill the developer's cloud account.
+const BILLING_ENV = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX",
+  "CLAUDE_CODE_USE_FOUNDRY", "AWS_BEARER_TOKEN_BEDROCK", "ANTHROPIC_BEDROCK_BASE_URL", "ANTHROPIC_VERTEX_PROJECT_ID"];
 
 export function createClaudeSubAdapter(opts: { query?: typeof sdkQuery; cwd?: string } = {}): Adapter {
   const query = opts.query ?? sdkQuery;
@@ -65,9 +67,10 @@ export function createClaudeSubAdapter(opts: { query?: typeof sdkQuery; cwd?: st
             error?: string; apiKeySource?: string; subtype?: string; is_error?: boolean; tools?: string[]; mcp_servers?: unknown[];
             usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } };
           if (m.type === "system" && m.subtype === "init") {
-            if (m.apiKeySource !== undefined && !SUBSCRIPTION_KEY_SOURCES.has(m.apiKeySource)) {
+            // Fail closed: an init message that does not say where the credentials came from is not trusted.
+            if (m.apiKeySource === undefined || !SUBSCRIPTION_KEY_SOURCES.has(m.apiKeySource)) {
               abortController.abort();
-              throw new ProviderError("auth", `Claude Agent SDK is using a key-based login (apiKeySource: ${m.apiKeySource}), not the subscription`);
+              throw new ProviderError("auth", `Claude Agent SDK is not on a subscription login (apiKeySource: ${m.apiKeySource ?? "missing"})`);
             }
             // Belt and braces: the options above disable tools, MCP and local settings. If the SDK still loaded any
             // (e.g. from the developer's global config), refuse rather than give the model capabilities.

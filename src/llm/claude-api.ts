@@ -39,12 +39,16 @@ export function createClaudeApiAdapter(opts: { apiKey: string; fetch?: typeof fe
             system: [{ type: "text", text: req.system, cache_control: { type: "ephemeral" } }], messages: req.messages,
             ...(req.model.effort ? { output_config: { effort: req.model.effort } } : {}) },
           { signal: req.signal });
+        let text = "";
         for await (const e of stream) {
           if (req.signal.aborted) throw new ProviderError("unavailable", "aborted");
-          if (e.type === "content_block_delta" && e.delta.type === "text_delta") yield { type: "delta", text: e.delta.text };
+          if (e.type === "content_block_delta" && e.delta.type === "text_delta") { text += e.delta.text; yield { type: "delta", text: e.delta.text }; }
         }
         if (req.signal.aborted) throw new ProviderError("unavailable", "aborted");
-        const u = (await stream.finalMessage()).usage;
+        const final = await stream.finalMessage();
+        // A refusal or an instant end_turn is never returned as if it were an answer (mirrors gemini.ts).
+        if (text.trim() === "") throw new ProviderError("unavailable", `Claude returned no text (stop_reason ${final.stop_reason ?? "none"})`);
+        const u = final.usage;
         yield { type: "usage", usage: { input: u.input_tokens ?? 0, output: u.output_tokens ?? 0,
           cacheRead: u.cache_read_input_tokens ?? 0, cacheWrite: u.cache_creation_input_tokens ?? 0 } };
       } catch (err) {

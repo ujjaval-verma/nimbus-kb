@@ -43,7 +43,7 @@ The knowledge base is 10 markdown files: 10,112 bytes, 1,775 words, about 3,000 
 **Brief (R3):** switch between Claude, OpenAI and Gemini, with automatic fallback to a backup provider. "A placeholder for the others is okay, tell us on the call."
 
 **What I built:**
-- All model calls go through one small `Adapter` interface (`src/llm/types.ts`): stream text, report token usage, and classify failures as rate limit, quota, auth, unavailable or bad request. The fallback chain only ever talks to that interface.
+- All model calls go through one small `Adapter` interface (`src/llm/types.ts`): stream text, report token usage, and classify failures as rate limit, quota, auth, unavailable or bad request. The fallback chain only ever talks to that interface. A link that gives no first token within 20 seconds, goes quiet for 30 seconds mid-answer, or ends with an empty reply counts as unavailable, and the chain moves on.
 - Claude is implemented two ways: through the Anthropic API with `ANTHROPIC_API_KEY` (on the Worker, or locally with `ANTHROPIC_DEV_API=1`), and through the developer's Claude Code login, which local development uses by default and the evals always use.
 - Gemini is implemented through Google's API when `GEMINI_API_KEY` is set. It is the cross-provider backup (decision 2).
 - OpenAI appears in the dropdown from `models.json`, marked "Placeholder, not implemented". Adding it is one adapter file that implements the same interface; nothing else in the app changes.
@@ -66,7 +66,7 @@ The knowledge base is 10 markdown files: 10,112 bytes, 1,775 words, about 3,000 
 
 The per-visitor and site-wide numbers are settings in `wrangler.json`, so anyone deploying their own copy can change them. A value that isn't a positive whole number switches the models off and logs why. It never means unlimited.
 
-**Password gate:** the whole site (the page, the static assets and `/api/*`) sits behind HTTP Basic Auth, the browser's own password prompt. The password is a Worker secret, `SITE_PASSWORD`, and is shared with the evaluators alongside the link. The username is ignored. It keeps crawlers and bots from spending the day's answers, which is what made it safe to raise the per-visitor limit to 25.
+**Password gate:** the whole site (the page, the static assets and `/api/*`) sits behind HTTP Basic Auth, the browser's own password prompt. Plain-http requests are redirected to https (308) before the gate runs, and responses carry HSTS, so the password is never prompted for or sent in cleartext (localhost is exempt for local development). The password is a Worker secret, `SITE_PASSWORD`, and is shared with the evaluators alongside the link. The username is ignored. It keeps crawlers and bots from spending the day's answers, which is what made it safe to raise the per-visitor limit to 25.
 - **Why not Cloudflare Access:** every visitor would have to sign in with an emailed code. A shared password is one prompt.
 - **Unset means open:** a fork without the secret serves an open, quota-limited site (the Worker logs a warning once).
 - **No gate locally:** the Node server has none, because it only listens on 127.0.0.1.

@@ -33,7 +33,7 @@ describe("claude-sub adapter", () => {
   });
 
   it("refuses to run if the SDK reports any tool or MCP server at startup", async () => {
-    const init = (tools: string[], mcp: unknown[]) => ({ type: "system", subtype: "init", tools, mcp_servers: mcp });
+    const init = (tools: string[], mcp: unknown[]) => ({ type: "system", subtype: "init", tools, mcp_servers: mcp, apiKeySource: "oauth" });
     const ok = fakeQuery([init([], []), delta("hi"), success]);
     expect(await collect(createClaudeSubAdapter({ query: ok.q, cwd: "/tmp" }).stream(req))).toHaveLength(2);
     const withTool = fakeQuery([init(["Bash"], []), delta("hi"), success]);
@@ -86,8 +86,9 @@ describe("claude-sub adapter", () => {
     expect(f).toContain("&lt;/user>");
   });
 
-  it("strips API-key and base-url variables from the SDK environment so the subscription is billed", async () => {
-    const keys = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"];
+  it("strips API-key, base-url, Bedrock, Vertex and Foundry variables from the SDK environment so the subscription is billed", async () => {
+    const keys = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX",
+      "CLAUDE_CODE_USE_FOUNDRY", "AWS_BEARER_TOKEN_BEDROCK", "ANTHROPIC_BEDROCK_BASE_URL", "ANTHROPIC_VERTEX_PROJECT_ID"];
     const saved = keys.map((k) => process.env[k]);
     keys.forEach((k) => { process.env[k] = "x"; });
     try {
@@ -111,6 +112,11 @@ describe("claude-sub adapter", () => {
       const f = fakeQuery([init(ok), delta("hi"), success]);
       expect(await collect(createClaudeSubAdapter({ query: f.q, cwd: "/tmp" }).stream(req))).toHaveLength(2);
     }
+  });
+
+  it("fails closed when the init message carries no apiKeySource", async () => {
+    const f = fakeQuery([{ type: "system", subtype: "init", tools: [], mcp_servers: [] }, delta("hi"), success]);
+    await expect(collect(createClaudeSubAdapter({ query: f.q, cwd: "/tmp" }).stream(req))).rejects.toMatchObject({ kind: "auth" });
   });
 
   it("aborts the SDK controller when the request signal is already aborted", async () => {

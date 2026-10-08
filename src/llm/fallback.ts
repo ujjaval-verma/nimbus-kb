@@ -11,24 +11,29 @@ import { type Adapter, type AdapterChunk, type ChatEvent, type ChatMessage, NOT_
 export interface ChainLink { model: ModelConfig; adapter: Adapter }
 export interface RunChainOptions {
   links: ChainLink[]; skipped: Notice[]; system: string; messages: ChatMessage[];
-  query: string; signal: AbortSignal; firstTokenTimeoutMs?: number; sections?: Section[];
+  query: string; signal: AbortSignal; firstTokenTimeoutMs?: number; idleTimeoutMs?: number; sections?: Section[];
   limits?: { historyTokens: number; maxOutputTokens: number; maxMessages: number };   // public site only (the quota); absent means no caps
 }
 
-// `deadline` is an absolute time (ms since epoch) fixed when the link starts, so non-text chunks cannot stretch it.
-async function nextWithTimeout(it: AsyncIterator<AdapterChunk>, deadline: number | null, totalMs: number): Promise<IteratorResult<AdapterChunk>> {
-  if (deadline === null) return it.next();
+// A link must produce its first token within this long, and after that never go quiet for longer than the idle limit.
+export const FIRST_TOKEN_TIMEOUT_MS = 20_000;
+export const IDLE_TIMEOUT_MS = 30_000;
+
+// `deadline` is an absolute time (ms since epoch). For the first token it is fixed when the link starts, so non-text
+// chunks cannot stretch it; after that it is moved forward on every chunk (an inter-chunk idle limit).
+async function nextWithTimeout(it: AsyncIterator<AdapterChunk>, deadline: number, what: string): Promise<IteratorResult<AdapterChunk>> {
   const ms = Math.max(0, deadline - Date.now());
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new ProviderError("unavailable", `no first token within ${totalMs} ms`)), ms);
+    timer = setTimeout(() => reject(new ProviderError("unavailable", what)), ms);
   });
   try { return await Promise.race([it.next(), timeout]); } finally { if (timer !== undefined) clearTimeout(timer); }
 }
 
 export async function* runChain(o: RunChainOptions): AsyncGenerator<ChatEvent> {
   const notices: Notice[] = [...o.skipped];
-  const firstMs = o.firstTokenTimeoutMs ?? 20_000;
+  const firstMs = o.firstTokenTimeoutMs ?? FIRST_TOKEN_TIMEOUT_MS;
+  const idleMs = o.idleTimeoutMs ?? IDLE_TIMEOUT_MS;
   const systemTokens = estimateTokens(o.system);
 
   for (const { model, adapter } of o.links) {
@@ -55,7 +60,8 @@ export async function* runChain(o: RunChainOptions): AsyncGenerator<ChatEvent> {
       it = adapter.stream({ model, system: o.system, messages: fit.messages, signal: linkAc.signal,
         maxOutputTokens: o.limits?.maxOutputTokens })[Symbol.asyncIterator]();
       for (;;) {
-        const r = await nextWithTimeout(it, streamed ? null : deadline, firstMs);
+        const r = streamed ? await nextWithTimeout(it, Date.now() + idleMs, `no data for ${idleMs} ms mid-answer`)
+          : await nextWithTimeout(it, deadline, `no first token within ${firstMs} ms`);
         if (o.signal.aborted) return;
         if (r.done) break;
         if (r.value.type === "delta") { streamed = true; text += r.value.text; yield { type: "delta", text: r.value.text }; }

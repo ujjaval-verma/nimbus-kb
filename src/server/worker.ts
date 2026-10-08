@@ -2,6 +2,7 @@ import { createClaudeApiAdapter } from "../llm/claude-api";
 import { createGeminiAdapter } from "../llm/gemini";
 import type { AdapterRegistry } from "../llm/types";
 import { createApp } from "./app";
+import { httpsRedirect } from "./https-redirect";
 import { createQuotaGate, type Ledger, parseQuotaLimits, type QuotaGate, type QuotaVars } from "./quota";
 import { checkSiteGate } from "./site-gate";
 
@@ -24,6 +25,8 @@ function quotaFor(env: Env, salt: string | undefined): QuotaGate | undefined {
 export default {
   async fetch(request, env, ctx) {
     const secrets = env as unknown as Secrets;   // Worker secrets (wrangler secret put); never in the bundle
+    const insecure = httpsRedirect(request);   // before the gate, so no password prompt is ever sent over http
+    if (insecure) return insecure;
     // Every path (page, assets, API) sits behind the shared password when SITE_PASSWORD is set; unset means open.
     const denied = await checkSiteGate(request, secrets.SITE_PASSWORD);
     if (denied) return denied;
