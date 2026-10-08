@@ -41,7 +41,7 @@ Nimbus KB is an internal chatbot for NimbusStack staff: sales on a live call, su
 | E8 Provider fails mid-reply | The server sends a reset, the browser drops the partial text, and the backup's answer is labelled "fallback from ...". | Local only (see [Demo the fallback](#demo-the-fallback)) |
 | E9 Rate limits and errors | Plain-language notices with a next step. Provider error text stays in server logs. | Live (notices for unconfigured models) |
 | E10 Blank message | Rejected in the browser and again on the server (400), with no provider call. | Live |
-| Auto-fail: keys in the browser | No key ever reaches the browser, and the build fails if one does. The live site holds no keys at all. | Live |
+| Auto-fail: keys in the browser | No key ever reaches the browser. `npm run check`, which every `npm run deploy` runs first, fails if one does. The live site holds no keys at all. | Live |
 | Auto-fail: answers not from the documents | Prompt rules, server-checked citations, a "No sources cited" badge, 18 eval cases. The live site only quotes passages. | Live (passages). Local for model answers |
 | Prompt injection | Prompt rules, untrusted rendering, a strict CSP, eval cases I1-I4. | Rendering and CSP live. I1-I4 local |
 
@@ -158,7 +158,7 @@ test/        Vitest, mirroring src/, plus recorded fixtures in test/fixtures/
 
 ## Security
 
-- **Keys never reach the browser.** `scripts/check-bundles.ts` fails the build if a key name or key-shaped string is in the browser bundle, or if the Claude Code login adapter is in the Worker bundle. The live site holds no keys at all.
+- **Keys never reach the browser.** `scripts/check-bundles.ts` fails `npm run check` (and so every `npm run deploy`) if a key name or key-shaped string is in the browser bundle, or if the Claude Code login adapter is in the Worker bundle. The live site holds no keys at all.
 - **Test fixtures are scrubbed**, and a test fails on any key-shaped string or auth header in them.
 - **Prompt injection:** prompt rules 11 and 12 treat documents and messages as information, not instructions, and earlier assistant turns as not evidence. The model has no tools. Answers render with no raw HTML, no images and no outside links, behind a strict Content Security Policy. Eval cases I1-I4 try the attacks, and an answer that cites nothing gets a "No sources cited" badge.
 - **The local server listens on `127.0.0.1` only**, because it can spend your Claude Code login.

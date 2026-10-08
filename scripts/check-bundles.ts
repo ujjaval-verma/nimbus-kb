@@ -12,9 +12,9 @@ for (const { f, s } of read("dist/client")) {
   if (/ANTHROPIC_API_KEY|OPENAI_API_KEY|GEMINI_API_KEY|QUOTA_SALT/.test(s)) fail.push(`${f}: key env name in client bundle`);
   if (/claude-agent-sdk/.test(s)) fail.push(`${f}: agent sdk in client bundle`);
 }
-const workerDir = readdirSync("dist").find((d) => d !== "client" && statSync(join("dist", d)).isDirectory());
-if (!workerDir) fail.push("no worker build output found in dist/");
-else for (const { f, s } of read(join("dist", workerDir))) {
+const workerDirs = readdirSync("dist").filter((d) => d !== "client" && statSync(join("dist", d)).isDirectory());
+if (workerDirs.length === 0) fail.push("no worker build output found in dist/");
+for (const dir of workerDirs) for (const { f, s } of read(join("dist", dir))) {
   if (/claude-agent-sdk|createClaudeSubAdapter/.test(s)) fail.push(`${f}: subscription adapter in Worker bundle`);
 }
 if (fail.length) { console.error(fail.join("\n")); process.exit(1); }

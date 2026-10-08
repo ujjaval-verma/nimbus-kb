@@ -44,7 +44,7 @@ The knowledge base is 10 markdown files: 10,112 bytes, 1,775 words, about 3,000 
 
 **What I built:**
 - All model calls go through one small `Adapter` interface (`src/llm/types.ts`): stream text, report token usage, and classify failures as rate limit, quota, auth, unavailable or bad request. The fallback chain only ever talks to that interface.
-- Claude is implemented two ways: through the Anthropic API with `ANTHROPIC_API_KEY` (on the Worker, or locally with `ANTHROPIC_DEV_API=1`), and through the developer's Claude Code login, which local development and the evals use by default.
+- Claude is implemented two ways: through the Anthropic API with `ANTHROPIC_API_KEY` (on the Worker, or locally with `ANTHROPIC_DEV_API=1`), and through the developer's Claude Code login, which local development uses by default and the evals always use.
 - Gemini is implemented through Google's API when `GEMINI_API_KEY` is set. It is the cross-provider backup (decision 2).
 - OpenAI appears in the dropdown from `models.json`, marked "Placeholder, not implemented". Adding it is one adapter file that implements the same interface; nothing else in the app changes.
 
