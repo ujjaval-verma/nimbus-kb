@@ -44,7 +44,7 @@ The knowledge base is 10 markdown files: 10,112 bytes, 1,775 words, about 3,000 
 
 **What I built:**
 - All model calls go through one small `Adapter` interface (`src/llm/types.ts`): stream text, report token usage, and classify failures as rate limit, quota, auth, unavailable or bad request. The fallback chain only ever talks to that interface.
-- Claude is implemented two ways: through the Anthropic API when `ANTHROPIC_API_KEY` is set, and through a local developer login for development and evals.
+- Claude is implemented two ways: through the Anthropic API with `ANTHROPIC_API_KEY` (on the Worker, or locally with `ANTHROPIC_DEV_API=1`), and through the developer's Claude Code login, which local development and the evals use by default.
 - Gemini is implemented through Google's API when `GEMINI_API_KEY` is set. It is the cross-provider backup (decision 2).
 - OpenAI appears in the dropdown from `models.json`, marked "Placeholder, not implemented". Adding it is one adapter file that implements the same interface; nothing else in the app changes.
 
@@ -61,9 +61,9 @@ The knowledge base is 10 markdown files: 10,112 bytes, 1,775 words, about 3,000 
 **What I built:** the live site at `nimbus.ujjaval.ca` answers with Claude Sonnet 5.5, with Gemini 3.5 Flash-Lite as the backup. Both keys are Worker secrets: they stay on Cloudflare's servers and never reach the browser, and the build checks that no key names or key-shaped strings end up in the browser bundle. The keys are only used behind a quota, capped three ways:
 - **Per visitor:** 10 model answers a day, enough for the six sample questions and a few follow-ups. A visitor is an IP address (for IPv6, the /64 block a home or server usually gets).
 - **Site-wide:** 300 model answers a day, for everyone together. That is 30 people using their full allowance, far more than this demo should see.
-
-Both numbers are settings in `wrangler.json`, so anyone deploying their own copy can change them. A value that isn't a positive whole number switches the models off and logs why; it never means unlimited.
 - **Per request:** at most 20,000 tokens of conversation history and a 1,000-token reply, and no more than 3 questions every 10 seconds.
+
+The per-visitor and site-wide numbers are settings in `wrangler.json`, so anyone deploying their own copy can change them. A value that isn't a positive whole number switches the models off and logs why. It never means unlimited.
 
 A question counts once, even if Claude fails and Gemini answers, and a question no model answered doesn't count. Composed answers for every eval case are also in `evals/results/latest.md`, and running the app locally has no limit. Once the quota is used up, the site still answers, with the most relevant passages from the knowledge base and a card that shows how to run it yourself in three steps. When no passage matches the question's key terms, it replies "That isn't covered in the NimbusStack knowledge base." without any model call. Keyword matching is cruder than a model: a question that shares words with the documents but isn't answered by them (say, an uptime figure) gets the nearest passages rather than that line. The Worker only turns the models on when the quota is set up, so a half-configured deploy serves passages, not open keys.
 

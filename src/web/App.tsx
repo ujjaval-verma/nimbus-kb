@@ -94,8 +94,8 @@ export function App() {
         <div className={`callout ${usage.level === "red" ? "danger" : "warn"}`} role="status">
           <p>
             {usage.level === "amber"
-              ? `This conversation is using ${pct}% of ${metered.name}'s context window. Start a new chat soon; close to the limit, earlier messages get left out of answers.`
-              : `This conversation is nearly at ${metered.name}'s context limit (${pct}%). Soon earlier messages will be left out of answers. Start a new chat.`}
+              ? `This conversation uses ${pct}% of ${metered.name}'s context window. Near the limit, earlier messages get left out of answers. Start a new chat soon.`
+              : `This conversation uses ${pct}% of ${metered.name}'s context window. Earlier messages will soon be left out of answers. Start a new chat.`}
           </p>
           <button type="button" onClick={newConversation}>Start a new chat</button>
         </div>

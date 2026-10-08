@@ -18,7 +18,7 @@ export function skippedNotice(m: ModelConfig): Notice {
 }
 export const SOURCES_ONLY_NOTICE: Notice = {
   kind: "info",
-  text: "No AI model could answer, so these passages from the knowledge base may be relevant. They are not a checked answer.",
+  text: "No AI model could answer. These are the closest passages from the knowledge base, not a checked answer.",
 };
 export function trimmedNotice(modelName: string, dropped: number): Notice {
   return { kind: "context", text: `${dropped} earlier message${dropped === 1 ? " was" : "s were"} left out so the conversation fits ${modelName}'s context window. Start a new chat for a clean slate.` };

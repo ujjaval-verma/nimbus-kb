@@ -23,7 +23,7 @@
     {
       "id": "openai", "provider": "openai", "providerLabel": "OpenAI",
       "model": "gpt-6-luna", "name": "GPT-6 Luna",
-      "description": "Placeholder. Listed for comparison; not implemented in this build.",
+      "description": "Placeholder. Listed for comparison, not implemented in this build.",
       "contextWindow": 1050000, "pricePerMTok": { "input": 0.1, "output": 0.5 },
       "status": "placeholder"
     },
