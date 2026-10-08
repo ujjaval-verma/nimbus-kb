@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/tested%20with-Vitest-success?style=flat-square" alt="Tested with Vitest"/>
 </p>
 
-**Try it:** https://nimbus.ujjaval.ca (password protected; the password comes with the submission)
+**Try it:** https://nimbus.ujjaval.ca (password protected: any username works, e.g. `demo`; only the password is checked, and it comes with the submission)
 
 The live site answers with Claude Sonnet 5.5, with Gemini 3.5 Flash-Lite as the backup. Each visitor gets 25 model answers a day, enough for the six sample questions, the edge cases and follow-ups, and the whole site gets 300 a day. After that, answers are sources-only (the matching passages from the knowledge base) plus how to run it yourself. Composed answers for every eval case are also in [`evals/results/latest.md`](evals/results/latest.md), and running it locally has no limit. The reasons are in [`docs/decisions.md`](docs/decisions.md).
 
@@ -25,7 +25,7 @@ Nimbus KB is an internal chatbot for NimbusStack staff: sales on a live call, su
 | Requirement | How | Live / Local |
 |---|---|---|
 | R1 Chat | Streamed answers over SSE, the conversation kept in the browser and sent with each question, a **New Conversation** button. | Live |
-| R2 Grounding | The whole knowledge base (32 sections, about 3,000 tokens) goes to the model with a stable id per section. The model cites ids inline, the server checks each one, and the cited passages appear under the answer. With no model (sources-only), a keyword ranker picks the passages. | Live |
+| R2 Grounding | The whole knowledge base (every section, 37 in all; with the rules the system prompt is about 6,400 Claude tokens) goes to the model with a stable id per section. The model cites ids inline, the server checks each one, and the cited passages appear under the answer. With no model (sources-only), a keyword ranker picks the passages. | Live |
 | R3 Model switching | Dropdown from `src/llm/models.json` with provider name and description. Claude and Gemini are implemented, each recorded once against its live API and tested offline with fixtures. OpenAI is a placeholder. Fallback order: Claude Sonnet 5.5, Gemini 3.5 Flash-Lite, Claude Haiku 4.5, then sources-only. | Dropdown live. Fallback: Live when a provider fails; demo locally with `FAULT_INJECT` |
 | R4 Usage | Input and output tokens and cost on every answer, session totals in the header, priced from `models.json`. | Live (within the daily quota) |
 | R4 Context warning | A meter in the header, amber at 75% and red at 90% of the selected model's window, each with **Start a new conversation**. History that would overflow is trimmed oldest first, with a notice. | Meter live. Amber, red and E7 shown locally (see Known limitations). |
@@ -49,11 +49,11 @@ Nimbus KB is an internal chatbot for NimbusStack staff: sales on a live call, su
 
 Where I followed the brief, where I pushed back, and why. Full text in [`docs/decisions.md`](docs/decisions.md).
 
-- [The corpus, measured](docs/decisions.md#the-corpus-measured): 10 files, about 3,000 tokens. Every decision starts from that number.
+- [The corpus, measured](docs/decisions.md#the-corpus-measured): 10 files, 37 sections, a system prompt of about 6,400 Claude tokens. Every decision starts from that number.
 - [1. The whole knowledge base goes to the model](docs/decisions.md#1-the-whole-knowledge-base-goes-to-the-model-instead-of-retrieving-passages-first), instead of retrieving passages first. Recall is 100% by construction.
 - [2. A mid-tier model at low effort](docs/decisions.md#2-a-mid-tier-model-at-low-effort-not-a-frontier-model): Claude Sonnet 5.5, then Gemini 3.5 Flash-Lite on another provider, then Claude Haiku 4.5.
 - [3. Two providers implemented and tested](docs/decisions.md#3-two-providers-implemented-and-tested-openai-is-a-placeholder-behind-the-same-adapter), OpenAI a placeholder behind the same adapter interface.
-- [4. Keys on the public site](docs/decisions.md#4-the-public-site-has-real-keys-behind-a-daily-quota), and the caps that bound the spend.
+- [4. Keys on the public site](docs/decisions.md#4-the-public-site-has-real-keys-behind-a-password-and-a-daily-quota), and the caps that bound the spend.
 - [5. Usage export left out](docs/decisions.md#5-one-should-item-is-left-out-usage-export): a session costs fractions of a cent.
 - [6. Platform and tooling](docs/decisions.md#6-platform-and-tooling): one Cloudflare Worker, no vector database, official SDKs.
 - [7. The context-window warning is built](docs/decisions.md#7-the-context-window-warning-is-built-because-the-context-stays-small-is-an-assumption), because "the context stays small" is an assumption.
@@ -97,7 +97,7 @@ Ask any question with Claude Sonnet 5.5 selected. Sonnet starts streaming, then 
 
 ```
 browser (React 19)  -- POST /api/chat, SSE back -->  Hono app (Worker in production, Node locally)
-                                                      | validate, fit history, prompt with all 32 sections
+                                                      | validate, fit history, prompt with all 37 sections
 fallback chain:  Claude Sonnet 5.5  ->  Gemini 3.5 Flash-Lite  ->  Claude Haiku 4.5
                                                       | one Adapter interface: stream text, report usage, classify errors
 adapters:  Claude API  ·  Gemini API  ·  Claude Code login (Node only)
@@ -152,7 +152,7 @@ test/        Vitest, mirroring src/, plus recorded fixtures in test/fixtures/
 - **OpenAI is a placeholder.** It is in the dropdown, marked as such, and can't answer.
 - **Tests replay API fixtures recorded once.** A change in a provider's API shows up in the tests only when someone re-records them.
 - **Usage totals leave out failed attempts.** Tokens spent by a model that failed before the fallback answered are not in the usage totals.
-- **The sources-only keyword ranker would not scale.** It is fine for 32 sections; a large corpus would need real search.
+- **The sources-only keyword ranker would not scale.** It is fine for 37 sections; a large corpus would need real search.
 - **Token counts before the first reply are estimates** (characters divided by 3), as are the turns after the last reply.
 - **The browser holds the history,** so a user can edit their own past turns. That only affects their own conversation, and the prompt treats earlier assistant turns as not evidence.
 
@@ -163,7 +163,7 @@ test/        Vitest, mirroring src/, plus recorded fixtures in test/fixtures/
 - **Three caps (per visitor, site-wide, per request) plus a burst limit per visitor.** 25 answers per visitor per day and 300 per day site-wide, both set in `wrangler.json` `vars`. Per request, at most 60,000 bytes of history (about 15,000 tokens of English, oldest messages left out first, with a notice) in at most 40 messages, and a 3,000-token reply. Burst: about 3 questions per 10 seconds per visitor (429 after that). Cloudflare's rate limiter counts per location and is eventually consistent, so it slows bursts, and the daily counts are the exact cap. Empty earlier turns are dropped. A question counts once even if it falls back to another provider, and a question no model answered does not count, unless a model had already streamed part of an answer (it was billed).
 - **No IP address is stored.** A visitor is counted by `sha256(day + QUOTA_SALT + address)`, with IPv6 grouped by /64. The salt and the date change the hash every day, and old days are deleted.
 - **Per-IP limits alone are not protection.** Anyone can change IP address with a phone network or a VPN. What bounds the spend is the site-wide cap and, behind it, limits at the providers: a spend limit on the Anthropic workspace that holds the key, and a budget alert on the Google Cloud project for the Gemini key.
-- **What a day can cost.** About a cent for a typical question; the worst case is $46 to $50 a day at Sonnet list prices, or about $84 if every provider fails after being billed. The provider spend limits are the hard bound. The arithmetic is in [decision 4](docs/decisions.md#4-the-public-site-has-real-keys-behind-a-daily-quota).
+- **What a day can cost.** About a cent for a typical question; the worst case is $45 to $50 a day at Sonnet list prices, or about $84 in practice if every provider fails after being billed. The provider spend limits are the hard bound. The arithmetic is in [decision 4](docs/decisions.md#4-the-public-site-has-real-keys-behind-a-password-and-a-daily-quota).
 - **Test fixtures are scrubbed**, and a test fails on any key-shaped string or auth header in them.
 - **Prompt injection:** prompt rules 11 and 12 treat documents and messages as information, not instructions, and earlier assistant turns as not evidence. The model has no tools. Answers render with no raw HTML, no images and no outside links, behind a strict Content Security Policy. Eval cases I1-I4 try the attacks, and an answer that cites nothing gets a "No sources cited" badge.
 - **The local server listens on `127.0.0.1` only**, because it can spend your Claude Code login.

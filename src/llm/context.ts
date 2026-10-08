@@ -1,8 +1,11 @@
 import type { ModelConfig } from "./config";
 import type { ChatMessage } from "./types";
 
-// Deliberately conservative: English prose averages about 4 characters per token, so 3 overestimates.
-export const CHARS_PER_TOKEN = 3;
+// Deliberately conservative. Measured on this knowledge base's system prompt (15,579 characters): Claude Sonnet counted
+// 6,369 tokens (2.45 characters per token) and Gemini 4,679 (3.3). The prompt is tables, ids and markdown, which
+// tokenize far worse than prose (about 4 characters per token), so a plain 3 would undercount Claude. At 2 the
+// estimate (7,790) overcounts Claude by about 22% and Gemini by more.
+export const CHARS_PER_TOKEN = 2;
 // Longest reply we ask for. claude-api.ts sends it as max_tokens; gemini.ts as maxOutputTokens, where it also has to
 // cover Gemini's thinking tokens.
 export const MAX_OUTPUT_TOKENS = 16_000;
@@ -13,7 +16,8 @@ export function estimateTokens(text: string): number {
 
 // Trimming starts at 95% of the window in estimate units, the same units the UI meter uses, so the meter's amber (75%)
 // and red (90%) always come before any turn is dropped. No separate reply allowance is needed: the estimate overcounts
-// English by about a third, which leaves far more than MAX_OUTPUT_TOKENS of real room in every implemented window.
+// Claude's real tokens on this content by about 22% (more for prose), which leaves more than MAX_OUTPUT_TOKENS of real
+// room in every implemented window.
 export const TRIM_AT = 0.95;
 export function historyBudget(model: ModelConfig, systemTokens: number): number {
   return Math.floor(model.contextWindow * TRIM_AT) - systemTokens;
@@ -31,10 +35,15 @@ export function fitToWindow(messages: ChatMessage[], budgetTokens: number): { me
   return { messages: out, dropped: messages.length - out.length };
 }
 
+// The public site's byte budget is its own cost bound, separate from the estimate above: UTF-8 bytes / 3, plus a
+// per-message overhead, against PUBLIC_HISTORY_TOKENS (so at most 60,000 bytes). It does not follow CHARS_PER_TOKEN.
+export const PUBLIC_BYTES_PER_UNIT = 3;
+
 // The window the UI meter should use when history is capped (public site): trimming then starts at exactly TRIM_AT of
-// it, the same place it starts for an uncapped model, so amber (75%) and red (90%) still come first.
+// it, the same place it starts for an uncapped model, so amber (75%) and red (90%) still come first. The meter counts
+// in estimate units (CHARS_PER_TOKEN), so the byte budget is converted into them first.
 export function publicContextWindow(systemTokens: number, historyTokens: number): number {
-  return Math.ceil((systemTokens + historyTokens) / TRIM_AT);
+  return Math.ceil((systemTokens + (historyTokens * PUBLIC_BYTES_PER_UNIT) / CHARS_PER_TOKEN) / TRIM_AT);
 }
 
 // The public site's history bound. estimateTokens counts UTF-16 units, so text that is several bytes per unit (CJK,
@@ -45,7 +54,7 @@ export function publicContextWindow(systemTokens: number, historyTokens: number)
 export const PUBLIC_MESSAGE_OVERHEAD = 4;
 const utf8 = new TextEncoder();
 export function publicTokens(text: string): number {
-  return Math.ceil(utf8.encode(text).length / CHARS_PER_TOKEN) + PUBLIC_MESSAGE_OVERHEAD;
+  return Math.ceil(utf8.encode(text).length / PUBLIC_BYTES_PER_UNIT) + PUBLIC_MESSAGE_OVERHEAD;
 }
 
 // Empty or whitespace-only turns carry nothing, and an empty assistant turn is an API error. Drop each with its other

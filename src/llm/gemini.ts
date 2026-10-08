@@ -6,7 +6,8 @@ import { type Adapter, type AdapterChunk, type ChatMessage, ProviderError, type 
 
 // Gemini 3.x thinks by default, and thinking tokens count against maxOutputTokens: with a tiny cap the reply is cut
 // before any visible text. Ask for the least thinking the model accepts (this job is careful reading, not reasoning)
-// and keep the full MAX_OUTPUT_TOKENS cap so thinking cannot starve the answer.
+// and keep the output cap at least as large as PUBLIC_MAX_OUTPUT_TOKENS. On the public site that cap (3,000) covers thinking and
+// answer together; MINIMAL thinking keeps it from starving the answer.
 export const GEMINI_THINKING_LEVEL = ThinkingLevel.MINIMAL;
 
 export interface GeminiUsageMetadata { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number; cachedContentTokenCount?: number }

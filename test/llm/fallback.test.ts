@@ -126,9 +126,9 @@ describe("runChain", () => {
     const small = { ...haiku, contextWindow: 40_000 };   // budget 38,000 - 4,000 (system) = 34,000 estimated tokens
     const a = fakeAdapter({ chunks: ["ok [vault.md#pricing]"] });
     const messages = [
-      { role: "user" as const, content: "Compare all products" }, { role: "assistant" as const, content: "y".repeat(120_000) },   // 40,000
+      { role: "user" as const, content: "Compare all products" }, { role: "assistant" as const, content: "y".repeat(120_000) },   // 60,000
       { role: "user" as const, content: "what about its SLA?" }];
-    const evs = await run([{ model: small, adapter: a }], { messages, system: "x".repeat(12_000) });
+    const evs = await run([{ model: small, adapter: a }], { messages, system: "x".repeat(8_000) });
     expect(a.lastReq!.messages).toEqual([{ role: "user", content: "what about its SLA?" }]);
     const done = evs.at(-1) as Extract<ChatEvent, { type: "done" }>;
     expect(done.notices).toEqual([expect.objectContaining({ kind: "context", text: expect.stringMatching(/left out/) })]);

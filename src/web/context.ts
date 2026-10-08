@@ -5,7 +5,7 @@ import type { Turn } from "./session";
 export type ContextLevel = "ok" | "amber" | "red";
 
 // What the next request would put in the window, in the same estimate units the server trims with
-// (3 characters per token), so amber/red always come before trimming. The last model reply's contextTokens is the
+// (2 characters per token, which overcounts Claude on this content), so amber/red always come before trimming. The last model reply's contextTokens is the
 // server's count after any trimming; turns after it, and everything before the first model reply, are estimated here.
 export function contextUsage(o: { turns: Turn[]; contextWindow: number; systemPromptTokens: number;
   thresholds: { amber: number; red: number } }) {

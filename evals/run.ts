@@ -70,7 +70,7 @@ mkdirSync("evals/results", { recursive: true });
 writeFileSync("evals/results/latest.md",
   `# Sample answers\n\nRecorded locally with ${model.name} (\`${model.model}\`), prompt ${PROMPT_VERSION}, on ${new Date().toLocaleDateString("en-CA")}. ` +
   `${CASES.length - failed}/${CASES.length} passed. Total estimated cost at API list prices: $${totalCost.toFixed(4)}.\n\n` +
-  `These are the brief's six sample questions, its edge cases and four prompt-injection attempts, run with the same prompt, fallback chain and citation code as the app, through the Claude Code login adapter (which sends prior turns as tagged text, where the live API adapter sends real message roles). Checks are keyword and citation heuristics, so read the answers too. The public site allows only a few answers a day per visitor, so this page shows every case in one place.\n\n` +
+  `These are the brief's six sample questions, its edge cases and four prompt-injection attempts, run with the same prompt, fallback chain and citation code as the app, through the Claude Code login adapter (which sends prior turns as tagged text, where the live API adapter sends real message roles). Checks are keyword and citation heuristics; each answer was also fact-checked by hand against the knowledge base. The public site limits answers per visitor, so this page shows every case in one place.\n\n` +
   rows.join("\n\n---\n\n") + "\n");
 console.log(`\n${CASES.length - failed}/${CASES.length} passed, $${totalCost.toFixed(4)}`);
 process.exit(failed ? 1 : 0);

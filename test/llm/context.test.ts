@@ -22,8 +22,10 @@ it("keeps the newest turns within budget, always keeps the question, and starts 
 it("budgets per model from its context window", () => {
   const sonnet = CONFIG.models.find((m) => m.id === "claude-sonnet")!;
   expect(historyBudget(sonnet, 4000)).toBe(Math.floor(1_000_000 * 0.95) - 4000);
-  // real room left for the reply even when history is at the cap (real tokens are about 3/4 of the estimate)
-  for (const m of CONFIG.models.filter((x) => x.status === "implemented")) expect(m.contextWindow * 0.95 * 0.75 + MAX_OUTPUT_TOKENS).toBeLessThan(m.contextWindow);
+  // Real room left for the reply even when history is at the cap. Measured: the system prompt is 6,369 real Claude tokens.
+  const realPerEstimate = 6369 / estimateTokens(buildSystemPrompt(SECTIONS));
+  expect(realPerEstimate).toBeLessThan(1);   // the estimate overcounts Claude on this content
+  for (const m of CONFIG.models.filter((x) => x.status === "implemented")) expect(m.contextWindow * 0.95 * realPerEstimate + MAX_OUTPUT_TOKENS).toBeLessThan(m.contextWindow);
 });
 
 it("the whole knowledge base stays a small share of every implemented model's window (else revisit decisions.md section 1)", () => {

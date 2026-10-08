@@ -16,7 +16,7 @@ it("starts from the system prompt alone", () => {
 it("uses the last model reply's context count (trimming units), plus estimates for turns after it", () => {
   expect(contextUsage({ turns: [modelTurn(160_000)], contextWindow: 1_000_000, systemPromptTokens: 4_000, thresholds }).tokens).toBe(160_000);
   const later: Turn = { id: "3", question: "q".repeat(300), answer: "a".repeat(300), status: "done", failed: [] };   // sources-only, no model usage
-  expect(contextUsage({ turns: [modelTurn(10_000), later], contextWindow: 1_000_000, systemPromptTokens: 4_000, thresholds }).tokens).toBe(10_200);
+  expect(contextUsage({ turns: [modelTurn(10_000), later], contextWindow: 1_000_000, systemPromptTokens: 4_000, thresholds }).tokens).toBe(10_300);   // 600 characters at 2 per token
 });
 
 it("switching to a smaller window updates the level immediately (E7)", () => {
@@ -32,7 +32,7 @@ it("a reply at the trimming cap (95% of the window) reads red, so warnings alway
 
 it("estimates from text when there is no model usage (sources-only turns)", () => {
   const t: Turn = { id: "2", question: "q".repeat(3000), answer: "a".repeat(3000), status: "done", failed: [] };
-  expect(contextUsage({ turns: [t], contextWindow: 200_000, systemPromptTokens: 0, thresholds }).tokens).toBe(2_000);
+  expect(contextUsage({ turns: [t], contextWindow: 200_000, systemPromptTokens: 0, thresholds }).tokens).toBe(3_000);   // 6,000 characters at 2 per token
 });
 
 it("meters against the first available model in [selected, ...fallbackOrder]", () => {
@@ -49,8 +49,8 @@ it("on the public site the meter uses the capped window, so amber and red come b
   expect(effectiveWindow(1_000_000, null)).toBe(1_000_000);
   expect(effectiveWindow(20_000, cap)).toBe(20_000);   // a smaller real window still wins
   const w = effectiveWindow(1_000_000, cap);
-  expect(contextUsage({ turns: [modelTurn(19_000)], contextWindow: w, systemPromptTokens: 4_000, thresholds }).level).toBe("amber");
-  expect(contextUsage({ turns: [modelTurn(24_000)], contextWindow: w, systemPromptTokens: 4_000, thresholds }).level).toBe("red");   // 24,000 = system + 20,000: trimming starts here
+  expect(contextUsage({ turns: [modelTurn(29_000)], contextWindow: w, systemPromptTokens: 4_000, thresholds }).level).toBe("amber");
+  expect(contextUsage({ turns: [modelTurn(34_000)], contextWindow: w, systemPromptTokens: 4_000, thresholds }).level).toBe("red");   // 34,000 = system + 30,000 estimate units (the 60,000-byte budget): trimming starts here
 });
 
 it("falls back to the smallest implemented window, whatever the list order", () => {

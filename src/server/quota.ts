@@ -10,9 +10,6 @@ export const QUOTA_LIMITS = {
   perVisitor: 25,                      // model answers per visitor per UTC day (people behind one shared IP share these)
   siteWide: 300,                       // model answers per UTC day for the whole site
   burst: { limit: 3, period: 10 },     // requests per visitor per 10 seconds
-  historyTokens: PUBLIC_HISTORY_TOKENS,
-  maxOutputTokens: PUBLIC_MAX_OUTPUT_TOKENS,
-  maxMessages: PUBLIC_MAX_MESSAGES,
 } as const;
 
 export type ExhaustedReason = "visitor" | "site";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { publicContextWindow } from "../../src/llm/context";
+import { CHARS_PER_TOKEN, publicContextWindow } from "../../src/llm/context";
 import { type Adapter, type ChatEvent, type ErrorKind, ProviderError } from "../../src/llm/types";
 import { createApp } from "../../src/server/app";
 import { createQuotaGate, MemoryQuotaStore, PUBLIC_HISTORY_TOKENS, PUBLIC_MAX_MESSAGES, PUBLIC_MAX_OUTPUT_TOKENS, QUOTA_LIMITS, QuotaLedger } from "../../src/server/quota";
@@ -224,8 +224,8 @@ describe("public quota on /api/models", () => {
       { quota: { limit: number; remaining: number } | null; contextCap: number | null; systemPromptTokens: number };
     expect(body.quota).toEqual({ limit: N, remaining: N });
     expect(body.contextCap).toBe(publicContextWindow(body.systemPromptTokens, PUBLIC_HISTORY_TOKENS));
-    // Trimming starts at system + 20,000: past red (90%) and at no more than the usual 95% of the meter's window.
-    const trimAt = (body.systemPromptTokens + PUBLIC_HISTORY_TOKENS) / body.contextCap!;
+    // Trimming starts at system + the 60,000-byte budget in estimate units (30,000): past red (90%) and at no more than the usual 95% of the meter's window.
+    const trimAt = (body.systemPromptTokens + (PUBLIC_HISTORY_TOKENS * 3) / CHARS_PER_TOKEN) / body.contextCap!;
     expect(trimAt).toBeGreaterThan(0.9);
     expect(trimAt).toBeLessThanOrEqual(0.95 + 1e-9);
   });
