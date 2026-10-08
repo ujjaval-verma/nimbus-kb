@@ -30,7 +30,7 @@ describe("models.json", () => {
       expect(m.label.length, m.id).toBeGreaterThan(0);
       expect(m.label.length, m.id).toBeLessThanOrEqual(20);
     }
-    expect(CONFIG.models.map((m) => m.label)).toEqual(["The default.", "First backup.", "Last backup.", "Not implemented."]);
+    expect(CONFIG.models.map((m) => m.label)).toEqual(["The default.", "First backup.", "Last backup.", "Not yet available."]);
   });
   it("falls back across providers: Sonnet, then Gemini, then Haiku", () => {
     expect(CONFIG.fallbackOrder).toEqual(["claude-sonnet", "gemini-flash-lite", "claude-haiku"]);

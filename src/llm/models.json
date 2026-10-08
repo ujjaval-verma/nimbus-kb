@@ -34,7 +34,7 @@
     {
       "id": "openai", "provider": "openai", "providerLabel": "OpenAI",
       "model": "gpt-6-luna", "name": "GPT-6 Luna",
-      "label": "Not implemented.",
+      "label": "Not yet available.",
       "description": "Not implemented in this build.",
       "contextWindow": 1050000, "pricePerMTok": { "input": 0.1, "output": 0.5 },
       "status": "placeholder"
