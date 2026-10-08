@@ -9,7 +9,7 @@ import { readEvents } from "../helpers/sse";
 type Done = Extract<ChatEvent, { type: "done" }>;
 type Msg = { role: "user" | "assistant"; content: string };
 const IP = "203.0.113.7";
-const N = QUOTA_LIMITS.perVisitor;   // 10 by default
+const N = QUOTA_LIMITS.perVisitor;   // 25 by default
 const quota = (o: { perVisitor?: number; siteWide?: number; burstOk?: boolean } = {}) => {
   const limits = { perVisitor: o.perVisitor ?? N, siteWide: o.siteWide ?? QUOTA_LIMITS.siteWide };
   return createQuotaGate({ ledger: new QuotaLedger(new MemoryQuotaStore(), limits), limits,
@@ -26,7 +26,7 @@ const longHistory: Msg[] = [{ role: "user", content: "Compare all products" }, {
   { role: "user", content: "what about its SLA?" }];
 
 describe("public quota on /api/chat (Review Focus 6)", () => {
-  it("10 answers a day by default, then passages plus the run-it-yourself notice, with no model call", async () => {
+  it("25 answers a day by default, then passages plus the run-it-yourself notice, with no model call", async () => {
     const adapter = fakeAdapter({ chunks: ["Pro is $35 [vault.md#pricing]"] });
     const app = createApp({ registry: { anthropic: adapter }, quota: quota() });
     for (let left = N - 1; left >= 0; left--) {
@@ -34,7 +34,7 @@ describe("public quota on /api/chat (Review Focus 6)", () => {
     }
     const over = await done(await ask(app));
     expect(over.answeredBy).toBe("sources-only");
-    expect(over.notices[0]).toEqual({ kind: "quota_exhausted", text: "You've used all of today's answers (10 a day per visitor). They reset at midnight UTC." });
+    expect(over.notices[0]).toEqual({ kind: "quota_exhausted", text: "You've used all of today's answers (25 a day per visitor). They reset at midnight UTC." });
     expect(over.quota).toEqual({ limit: N, remaining: 0 });
     expect(adapter.calls).toBe(N);
   });

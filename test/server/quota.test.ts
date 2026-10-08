@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { createQuotaGate, ipKey, MemoryQuotaStore, parseQuotaLimits, PUBLIC_MAX_OUTPUT_TOKENS, QUOTA_LIMITS, QuotaLedger, type SqlLike, SqlQuotaStore, utcDay } from "../../src/server/quota";
 
-const N = QUOTA_LIMITS.perVisitor;   // 10 by default
+const N = QUOTA_LIMITS.perVisitor;   // 25 by default
 const DAY1 = "2026-10-07";
 const DAY2 = "2026-10-08";
 
@@ -35,7 +35,7 @@ describe("QuotaLedger", () => {
     return { store, l: new QuotaLedger(store, limits) };
   };
 
-  it("allows the per-visitor limit (default 10) per day, then refuses with reason visitor", () => {
+  it("allows the per-visitor limit (default 25) per day, then refuses with reason visitor", () => {
     const { l } = make();
     for (let i = 1; i <= N; i++) expect(l.reserve("v1", DAY1)).toMatchObject({ ok: true, visitorUsed: i });
     expect(l.reserve("v1", DAY1)).toMatchObject({ ok: false, reason: "visitor", visitorUsed: N });
@@ -159,8 +159,8 @@ describe("createQuotaGate", () => {
   });
 
   it("parseQuotaLimits: defaults (10 and 300), deployer overrides, and invalid values fail closed", () => {
-    expect(QUOTA_LIMITS.perVisitor).toBe(10);
-    expect(parseQuotaLimits({})).toEqual({ ok: true, limits: { perVisitor: 10, siteWide: 300 } });
+    expect(QUOTA_LIMITS.perVisitor).toBe(25);
+    expect(parseQuotaLimits({})).toEqual({ ok: true, limits: { perVisitor: 25, siteWide: 300 } });
     expect(parseQuotaLimits({ QUOTA_PER_VISITOR_PER_DAY: "3", QUOTA_SITE_PER_DAY: " 50 " })).toEqual({ ok: true, limits: { perVisitor: 3, siteWide: 50 } });
     for (const bad of ["0", "-1", "abc", "1.5", "", "1e3", "Infinity"]) {
       const r = parseQuotaLimits({ QUOTA_PER_VISITOR_PER_DAY: bad });
@@ -186,6 +186,13 @@ describe("createQuotaGate", () => {
   it("the committed wrangler.json vars equal the code defaults", () => {
     const cfg = JSON.parse(readFileSync("wrangler.json", "utf8")) as { vars: Record<string, string> };
     expect(cfg.vars).toMatchObject({ QUOTA_PER_VISITOR_PER_DAY: String(QUOTA_LIMITS.perVisitor), QUOTA_SITE_PER_DAY: String(QUOTA_LIMITS.siteWide) });
+  });
+
+  it("every request goes through the Worker, which gates it and serves the assets binding", () => {
+    const cfg = JSON.parse(readFileSync("wrangler.json", "utf8")) as { assets: { run_worker_first: unknown; binding: string; not_found_handling: string } };
+    expect(cfg.assets.run_worker_first).toBe(true);
+    expect(cfg.assets.binding).toBe("ASSETS");
+    expect(cfg.assets.not_found_handling).toBe("single-page-application");
   });
 
   it("the burst limit matches the ratelimit binding in wrangler.json", () => {

@@ -9,9 +9,9 @@
   <img src="https://img.shields.io/badge/tested%20with-Vitest-success?style=flat-square" alt="Tested with Vitest"/>
 </p>
 
-**Try it:** https://nimbus.ujjaval.ca
+**Try it:** https://nimbus.ujjaval.ca (password protected; the password comes with the submission)
 
-The live site answers with Claude Sonnet 5.5, with Gemini 3.5 Flash-Lite as the backup. Each visitor gets 10 model answers a day, enough for the six sample questions and a few follow-ups, and the whole site gets 300 a day. After that, answers are sources-only (the matching passages from the knowledge base) plus how to run it yourself. Composed answers for every eval case are also in [`evals/results/latest.md`](evals/results/latest.md), and running it locally has no limit. The reasons are in [`docs/decisions.md`](docs/decisions.md).
+The live site answers with Claude Sonnet 5.5, with Gemini 3.5 Flash-Lite as the backup. Each visitor gets 25 model answers a day, enough for the six sample questions, the edge cases and follow-ups, and the whole site gets 300 a day. After that, answers are sources-only (the matching passages from the knowledge base) plus how to run it yourself. Composed answers for every eval case are also in [`evals/results/latest.md`](evals/results/latest.md), and running it locally has no limit. The reasons are in [`docs/decisions.md`](docs/decisions.md).
 
 <div align="center">
   <img src="docs/media/screenshot.png" alt="Nimbus KB running locally: Claude Sonnet 5.5 answers which products support SAML 2.0 in a table, product by product, with citation chips on every row" width="600"/>
@@ -148,7 +148,7 @@ test/        Vitest, mirroring src/, plus recorded fixtures in test/fixtures/
 
 ## Known limitations
 
-- **The public site has a daily quota.** Each visitor gets 10 model answers a day. Deployers can change this and the 300-a-day site cap in `wrangler.json` `vars`. Everyone behind one IP address (an office, a campus) shares those 10. There is no CAPTCHA. Conversations there are capped at 60,000 bytes of history (about 15,000 tokens of English) in at most 40 messages, and 3,000-token replies, so the context meter there cannot show E7.
+- **The public site has a daily quota.** Each visitor gets 25 model answers a day. Deployers can change this and the 300-a-day site cap in `wrangler.json` `vars`. Everyone behind one IP address (an office, a campus) shares those 25. There is no CAPTCHA; the site password keeps out bots and crawlers. Conversations there are capped at 60,000 bytes of history (about 15,000 tokens of English) in at most 40 messages, and 3,000-token replies, so the context meter there cannot show E7.
 - **OpenAI is a placeholder.** It is in the dropdown, marked as such, and can't answer.
 - **Tests replay API fixtures recorded once.** A change in a provider's API shows up in the tests only when someone re-records them.
 - **Usage totals leave out failed attempts.** Tokens spent by a model that failed before the fallback answered are not in the usage totals.
@@ -160,7 +160,7 @@ test/        Vitest, mirroring src/, plus recorded fixtures in test/fixtures/
 
 - **Keys never reach the browser.** They reach the deployment only as Worker secrets (`wrangler secret put`). `scripts/check-bundles.ts` fails `npm run check` (and so every `npm run deploy`) if a key name or key-shaped string is in the browser bundle, or if the Claude Code login adapter is in the Worker bundle.
 - **No quota, no model.** The Worker registers a model only when the quota is fully set up: the `QUOTA` Durable Object, the `BURST` rate limiter, the `QUOTA_SALT` secret and valid limits. Anything missing or invalid means sources-only, never unlimited.
-- **Three caps (per visitor, site-wide, per request) plus a burst limit per visitor.** 10 answers per visitor per day and 300 per day site-wide, both set in `wrangler.json` `vars`. Per request, at most 60,000 bytes of history (about 15,000 tokens of English, oldest messages left out first, with a notice) in at most 40 messages, and a 3,000-token reply. Burst: about 3 questions per 10 seconds per visitor (429 after that). Cloudflare's rate limiter counts per location and is eventually consistent, so it slows bursts, and the daily counts are the exact cap. Empty earlier turns are dropped. A question counts once even if it falls back to another provider, and a question no model answered does not count, unless a model had already streamed part of an answer (it was billed).
+- **Three caps (per visitor, site-wide, per request) plus a burst limit per visitor.** 25 answers per visitor per day and 300 per day site-wide, both set in `wrangler.json` `vars`. Per request, at most 60,000 bytes of history (about 15,000 tokens of English, oldest messages left out first, with a notice) in at most 40 messages, and a 3,000-token reply. Burst: about 3 questions per 10 seconds per visitor (429 after that). Cloudflare's rate limiter counts per location and is eventually consistent, so it slows bursts, and the daily counts are the exact cap. Empty earlier turns are dropped. A question counts once even if it falls back to another provider, and a question no model answered does not count, unless a model had already streamed part of an answer (it was billed).
 - **No IP address is stored.** A visitor is counted by `sha256(day + QUOTA_SALT + address)`, with IPv6 grouped by /64. The salt and the date change the hash every day, and old days are deleted.
 - **Per-IP limits alone are not protection.** Anyone can change IP address with a phone network or a VPN. What bounds the spend is the site-wide cap and, behind it, limits at the providers: a spend limit on the Anthropic workspace that holds the key, and a budget alert on the Google Cloud project for the Gemini key.
 - **What a day can cost.** About a cent for a typical question; the worst case is $46 to $50 a day at Sonnet list prices, or about $84 if every provider fails after being billed. The provider spend limits are the hard bound. The arithmetic is in [decision 4](docs/decisions.md#4-the-public-site-has-real-keys-behind-a-daily-quota).
@@ -170,4 +170,4 @@ test/        Vitest, mirroring src/, plus recorded fixtures in test/fixtures/
 
 ## Deploy your own
 
-To deploy your own copy to Cloudflare, edit `routes` in `wrangler.json` (it points at this site's domain), then `wrangler secret put QUOTA_SALT` (for example `openssl rand -hex 32`) and at least one of `ANTHROPIC_API_KEY` and `GEMINI_API_KEY`, then `npm run deploy`. To run it on your own machine instead, see [Run it locally](#run-it-locally); locally there is no quota.
+To deploy your own copy to Cloudflare, edit `routes` in `wrangler.json` (it points at this site's domain), then `wrangler secret put QUOTA_SALT` (for example `openssl rand -hex 32`) and at least one of `ANTHROPIC_API_KEY` and `GEMINI_API_KEY`, then `npx wrangler secret put SITE_PASSWORD`, then `npm run deploy`. `SITE_PASSWORD` puts the whole site behind HTTP Basic Auth (any username, that password); leaving it unset leaves the site open, limited only by the quota. To run it on your own machine instead, see [Run it locally](#run-it-locally); locally there is no quota.

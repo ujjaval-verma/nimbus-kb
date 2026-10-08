@@ -54,17 +54,22 @@ The knowledge base is 10 markdown files: 10,112 bytes, 1,775 words, about 3,000 
 
 **Why two providers, not three:** every provider key is a long-lived secret that can spend money. Two providers are enough for a real cross-provider fallback; a third adds another secret to store, rotate and leak without making the answers better.
 
-## 4. The public site has real keys, behind a daily quota
+## 4. The public site has real keys, behind a password and a daily quota
 
 **Brief:** "At least one provider must work on your live link." Also: an API key visible in the browser fails the assessment.
 
 **What I built:** the live site at `nimbus.ujjaval.ca` answers with Claude Sonnet 5.5, with Gemini 3.5 Flash-Lite as the backup. Both keys are Worker secrets: they stay on Cloudflare's servers and never reach the browser, and the build checks that no key names or key-shaped strings end up in the browser bundle. The keys are only used behind a quota: three caps (per visitor, site-wide, per request) plus a burst limit per visitor.
-- **Per visitor:** 10 model answers a day, enough for the six sample questions and a few follow-ups. A visitor is an IP address (for IPv6, the /64 block a home or server usually gets).
-- **Site-wide:** 300 model answers a day, for everyone together. That is 30 people using their full allowance, far more than this demo should see.
+- **Per visitor:** 25 model answers a day, enough for the six sample questions, the edge cases and follow-ups. A visitor is an IP address (for IPv6, the /64 block a home or server usually gets).
+- **Site-wide:** 300 model answers a day, for everyone together. That is 12 people using their full allowance, far more than this demo should see.
 - **Per request:** at most 60,000 bytes of conversation history (about 15,000 tokens of English) in at most 40 messages, and a 3,000-token reply (the longest eval answer was 2,172 tokens, and a reply cut short can lose its citations). History is measured in bytes, not characters: a Chinese character or an emoji takes several bytes and can cost up to one token per byte.
 - **Burst:** about 3 questions every 10 seconds per visitor.
 
 The per-visitor and site-wide numbers are settings in `wrangler.json`, so anyone deploying their own copy can change them. A value that isn't a positive whole number switches the models off and logs why. It never means unlimited.
+
+**Password gate:** the whole site (the page, the static assets and `/api/*`) sits behind HTTP Basic Auth, the browser's own password prompt. The password is a Worker secret, `SITE_PASSWORD`, and is shared with the evaluators alongside the link. The username is ignored. It keeps crawlers and bots from spending the day's answers, which is what made it safe to raise the per-visitor limit to 25.
+- **Why not Cloudflare Access:** every visitor would have to sign in with an emailed code. A shared password is one prompt.
+- **Unset means open:** a fork without the secret serves an open, quota-limited site (the Worker logs a warning once).
+- **No gate locally:** the Node server has none, because it only listens on 127.0.0.1.
 
 **What counts:** A question counts once, even if Claude fails and Gemini answers, and a question no model answered doesn't count, unless a model had already streamed part of an answer before failing (it was billed).
 
@@ -77,10 +82,11 @@ The per-visitor and site-wide numbers are settings in `wrangler.json`, so anyone
 **Privacy:** the quota never stores an IP address, only a hash of it salted with a secret and the date, so the same visitor can't be linked from one day to the next. Old days are deleted.
 
 **Accepted risks, stated plainly:**
-- Everyone behind one IP address (an office, a campus) shares the same 10 answers.
-- There is no CAPTCHA, so a determined bot can use up the day's 300 answers. The cap holds the cost, and the card points people to running it themselves.
+- Everyone behind one IP address (an office, a campus) shares the same 25 answers.
+- There is no CAPTCHA. The password keeps out bots and crawlers, but someone who has the password could still use up the day's 300 answers. The cap holds the cost, and the card points people to running it themselves.
+- The password is shared, so it can be passed on. Changing the secret locks everyone out at once.
 
-**Revisit when:** abuse shows up in the logs (add Cloudflare Turnstile), or real use outgrows 300 answers a day.
+**Revisit when:** the password leaks or abuse shows up in the logs (rotate the secret, or add Cloudflare Turnstile), or real use outgrows 300 answers a day.
 
 ## 5. One SHOULD item is left out: usage export
 

@@ -7,7 +7,7 @@ export const PUBLIC_MAX_OUTPUT_TOKENS = 3_000;   // reply cap per request; the l
 // Every public-quota default lives here. wrangler.json mirrors them: "vars" (QUOTA_PER_VISITOR_PER_DAY, QUOTA_SITE_PER_DAY,
 // which deployers may change) and "ratelimits" (the burst limit). Tests keep the committed values equal to these.
 export const QUOTA_LIMITS = {
-  perVisitor: 10,                      // model answers per visitor per UTC day (people behind one shared IP share these)
+  perVisitor: 25,                      // model answers per visitor per UTC day (people behind one shared IP share these)
   siteWide: 300,                       // model answers per UTC day for the whole site
   burst: { limit: 3, period: 10 },     // requests per visitor per 10 seconds
   historyTokens: PUBLIC_HISTORY_TOKENS,

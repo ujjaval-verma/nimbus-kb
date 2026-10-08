@@ -3,10 +3,11 @@ import { createGeminiAdapter } from "../llm/gemini";
 import type { AdapterRegistry } from "../llm/types";
 import { createApp } from "./app";
 import { createQuotaGate, type Ledger, parseQuotaLimits, type QuotaGate, type QuotaVars } from "./quota";
+import { checkSiteGate } from "./site-gate";
 
 export { QuotaCounter } from "./quota-do";
 
-interface Secrets { ANTHROPIC_API_KEY?: string; GEMINI_API_KEY?: string; QUOTA_SALT?: string }
+interface Secrets { ANTHROPIC_API_KEY?: string; GEMINI_API_KEY?: string; QUOTA_SALT?: string; SITE_PASSWORD?: string }
 
 function quotaFor(env: Env, salt: string | undefined): QuotaGate | undefined {
   if (!env.QUOTA || !env.BURST || !salt) return undefined;
@@ -21,8 +22,12 @@ function quotaFor(env: Env, salt: string | undefined): QuotaGate | undefined {
 }
 
 export default {
-  fetch(request, env, ctx) {
+  async fetch(request, env, ctx) {
     const secrets = env as unknown as Secrets;   // Worker secrets (wrangler secret put); never in the bundle
+    // Every path (page, assets, API) sits behind the shared password when SITE_PASSWORD is set; unset means open.
+    const denied = await checkSiteGate(request, secrets.SITE_PASSWORD);
+    if (denied) return denied;
+    if (!new URL(request.url).pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
     const quota = quotaFor(env, secrets.QUOTA_SALT);
     const registry: AdapterRegistry = {};
     // Keys are spent only behind the quota: without the counter, the burst limiter and the salt, no model is registered.
