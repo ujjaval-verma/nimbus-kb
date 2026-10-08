@@ -1,0 +1,19 @@
+{
+  "provider": "gemini",
+  "name": "max-tokens-empty",
+  "synthetic": true,
+  "recordedOn": "2026-10-07",
+  "note": "Synthetic. Imitates thinking using the whole output budget: finishReason MAX_TOKENS and no visible text, as seen in a 5-token test call on 2026-10-07.",
+  "request": {
+    "method": "POST",
+    "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:streamGenerateContent?alt=sse",
+    "model": "gemini-3.5-flash-lite",
+    "promptVersion": "n/a",
+    "question": "What is the P1 response time for Vault Pro?"
+  },
+  "response": {
+    "status": 200,
+    "contentType": "text/event-stream",
+    "body": "data: {\"candidates\":[{\"content\":{\"role\":\"model\"},\"finishReason\":\"MAX_TOKENS\",\"index\":0}],\"usageMetadata\":{\"promptTokenCount\":3100,\"thoughtsTokenCount\":16000,\"totalTokenCount\":19100},\"modelVersion\":\"gemini-3.5-flash-lite\"}\r\n\r\n"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "provider": "gemini",
+  "name": "stream-ok",
+  "synthetic": false,
+  "recordedOn": "2026-10-08",
+  "note": "One real grounded answer: the full system prompt and a short knowledge-base question.",
+  "request": {
+    "method": "POST",
+    "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:streamGenerateContent?alt=sse",
+    "model": "gemini-3.5-flash-lite",
+    "promptVersion": "2026-10-07.2",
+    "question": "What is the P1 response time for Vault Pro?"
+  },
+  "response": {
+    "status": 200,
+    "contentType": "text/event-stream",
+    "body": "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"The\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 4679,\"candidatesTokenCount\": 1,\"totalTokenCount\": 4680,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 4679}],\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash-lite\",\"responseId\": \"1gfHaraYGM_3jrEP44a5gQE\"}\r\n\r\ndata: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" P1 (service down) response time for Vault Pro is 1 hour\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 4679,\"candidatesTokenCount\": 22,\"totalTokenCount\": 4701,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 4679}],\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash-lite\",\"responseId\": \"1gfHaraYGM_3jrEP44a5gQE\"}\r\n\r\ndata: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" [vault.md#support-sla].\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 4679,\"candidatesTokenCount\": 25,\"totalTokenCount\": 4704,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 4679}],\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash-lite\",\"responseId\": \"1gfHaraYGM_3jrEP44a5gQE\"}\r\n\r\ndata: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"\",\"thoughtSignature\": \"EmAKXgFpFH0TooVhKNTaJmFe+66o5JeJJUYxNy98RD8XyAHyscKrEWi8QkiZu3NNockDOvyDibfzg7M3hG0kIvDnGW1MtYqBPr6DD2p/GAza5uWJL3SoHRpehZ8K8wA9qGw=\"}],\"role\": \"model\"},\"finishReason\": \"STOP\",\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 4679,\"candidatesTokenCount\": 25,\"totalTokenCount\": 4704,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 4679}],\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash-lite\",\"responseId\": \"1gfHaraYGM_3jrEP44a5gQE\"}\r\n\r\n"
+  }
+}

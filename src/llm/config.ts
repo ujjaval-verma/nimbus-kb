@@ -3,7 +3,7 @@ import raw from "./models.json";
 export type ProviderId = "anthropic" | "openai" | "google";
 export interface ModelConfig {
   id: string; provider: ProviderId; providerLabel: string; model: string; name: string;
-  description: string; contextWindow: number;
+  description: string; contextWindow: number; outputTokenLimit?: number;
   pricePerMTok: { input: number; output: number; cacheRead?: number; cacheWrite?: number };
   effort?: "low" | "medium" | "high";
   status: "implemented" | "placeholder";
@@ -27,6 +27,7 @@ export function validateConfig(input: unknown): ModelsConfig {
     ids.add(m.id);
     if (!PROVIDERS.includes(m.provider)) throw new Error(`models.json: unknown provider "${m.provider}"`);
     if (!(m.contextWindow > 0)) throw new Error(`models.json: contextWindow must be positive for "${m.id}"`);
+    if (m.outputTokenLimit !== undefined && !(m.outputTokenLimit > 0)) throw new Error(`models.json: outputTokenLimit must be positive for "${m.id}"`);
     if (!(m.pricePerMTok?.input > 0 && m.pricePerMTok?.output > 0)) throw new Error(`models.json: price must be positive for "${m.id}"`);
     if (m.status !== "implemented" && m.status !== "placeholder") throw new Error(`models.json: bad status for "${m.id}"`);
     if (m.effort !== undefined && !["low", "medium", "high"].includes(m.effort)) throw new Error(`models.json: bad effort for "${m.id}"`);

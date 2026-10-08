@@ -1,10 +1,11 @@
 // Records real provider responses once, as test fixtures. Costs a few cents. Run it only when an adapter changes:
-//   direnv exec . npm run record:fixtures -- --provider anthropic
+//   direnv exec . npm run record:fixtures -- --provider anthropic|gemini
 // Keys come only from process.env. Request headers and bodies are never saved; responses are scrubbed before writing.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { SECTIONS } from "../src/kb";
 import { createClaudeApiAdapter } from "../src/llm/claude-api";
+import { createGeminiAdapter } from "../src/llm/gemini";
 import { getModel } from "../src/llm/config";
 import { buildSystemPrompt, PROMPT_VERSION } from "../src/llm/prompt";
 import type { Adapter } from "../src/llm/types";
@@ -18,6 +19,7 @@ interface Target { envKey: string; modelId: string; make: (apiKey: string) => Ad
 const TARGETS: Partial<Record<FixtureProvider, Target>> = {
   // No retries: each fixture is exactly one HTTP call.
   anthropic: { envKey: "ANTHROPIC_API_KEY", modelId: "claude-sonnet", make: (apiKey) => createClaudeApiAdapter({ apiKey, maxRetries: 0 }) },
+  gemini: { envKey: "GEMINI_API_KEY", modelId: "gemini-flash-lite", make: (apiKey) => createGeminiAdapter({ apiKey }) },
 };
 
 const provider = process.argv[process.argv.indexOf("--provider") + 1] as FixtureProvider;

@@ -1,0 +1,19 @@
+{
+  "provider": "gemini",
+  "name": "safety-blocked",
+  "synthetic": true,
+  "recordedOn": "2026-10-07",
+  "note": "Synthetic. Imitates a stream that ends with finishReason SAFETY and no text. Not worth provoking with a harmful prompt.",
+  "request": {
+    "method": "POST",
+    "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:streamGenerateContent?alt=sse",
+    "model": "gemini-3.5-flash-lite",
+    "promptVersion": "n/a",
+    "question": "What is the P1 response time for Vault Pro?"
+  },
+  "response": {
+    "status": 200,
+    "contentType": "text/event-stream",
+    "body": "data: {\"candidates\":[{\"content\":{\"role\":\"model\"},\"finishReason\":\"SAFETY\",\"index\":0,\"safetyRatings\":[{\"category\":\"HARM_CATEGORY_DANGEROUS_CONTENT\",\"probability\":\"HIGH\",\"blocked\":true}]}],\"usageMetadata\":{\"promptTokenCount\":3100,\"totalTokenCount\":3100},\"modelVersion\":\"gemini-3.5-flash-lite\"}\r\n\r\n"
+  }
+}

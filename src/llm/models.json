@@ -1,12 +1,12 @@
 {
   "pricesCheckedOn": "2026-10-07",
-  "fallbackOrder": ["claude-sonnet", "claude-haiku"],
+  "fallbackOrder": ["claude-sonnet", "gemini-flash-lite", "claude-haiku"],
   "contextWarning": { "amber": 0.75, "red": 0.9 },
   "models": [
     {
       "id": "claude-haiku", "provider": "anthropic", "providerLabel": "Claude (Anthropic)",
       "model": "claude-haiku-4-5", "name": "Claude Haiku 4.5",
-      "description": "Fastest and cheapest. The backup when Sonnet is unavailable.",
+      "description": "Claude's smallest model. The last backup, after Gemini.",
       "contextWindow": 200000,
       "pricePerMTok": { "input": 1, "output": 5, "cacheRead": 0.1, "cacheWrite": 1.25 },
       "status": "implemented"
@@ -28,11 +28,12 @@
       "status": "placeholder"
     },
     {
-      "id": "gemini", "provider": "google", "providerLabel": "Gemini (Google)",
-      "model": "gemini-3.8-flash", "name": "Gemini 3.8 Flash",
-      "description": "Placeholder. Listed for comparison; not implemented in this build.",
-      "contextWindow": 1048576, "pricePerMTok": { "input": 0.75, "output": 3.75 },
-      "status": "placeholder"
+      "id": "gemini-flash-lite", "provider": "google", "providerLabel": "Gemini (Google)",
+      "model": "gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash-Lite",
+      "description": "Google's fast, low-cost model. The cross-provider backup.",
+      "contextWindow": 1048576, "outputTokenLimit": 65536,
+      "pricePerMTok": { "input": 0.3, "output": 2.5, "cacheRead": 0.03 },
+      "status": "implemented"
     }
   ]
 }

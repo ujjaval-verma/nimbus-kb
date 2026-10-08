@@ -1,0 +1,19 @@
+{
+  "provider": "gemini",
+  "name": "auth-invalid-key",
+  "synthetic": false,
+  "recordedOn": "2026-10-08",
+  "note": "Free call: a deliberately invalid key.",
+  "request": {
+    "method": "POST",
+    "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:streamGenerateContent?alt=sse",
+    "model": "gemini-3.5-flash-lite",
+    "promptVersion": "2026-10-07.2",
+    "question": "What is the P1 response time for Vault Pro?"
+  },
+  "response": {
+    "status": 400,
+    "contentType": "text/event-stream",
+    "body": "{\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"API key not valid. Please pass a valid API key.\",\n    \"status\": \"INVALID_ARGUMENT\",\n    \"details\": [\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.ErrorInfo\",\n        \"reason\": \"API_KEY_INVALID\",\n        \"domain\": \"googleapis.com\",\n        \"metadata\": {\n          \"service\": \"generativelanguage.googleapis.com\"\n        }\n      },\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.LocalizedMessage\",\n        \"locale\": \"en-US\",\n        \"message\": \"API key not valid. Please pass a valid API key.\"\n      }\n    ]\n  }\n}\n"
+  }
+}
