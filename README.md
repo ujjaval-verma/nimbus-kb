@@ -14,7 +14,7 @@
 The live site answers with Claude Sonnet 5.5, with Gemini 3.5 Flash-Lite as the backup. Each visitor gets 10 model answers a day, enough for the six sample questions and a few follow-ups, and the whole site gets 300 a day. After that, answers are sources-only (the matching passages from the knowledge base) plus how to run it yourself. Composed answers for every eval case are also in [`evals/results/latest.md`](evals/results/latest.md), and running it locally has no limit. The reasons are in [`docs/decisions.md`](docs/decisions.md).
 
 <div align="center">
-  <img src="docs/media/screenshot.png" alt="Nimbus KB running locally: Claude Sonnet 5.5 answers which products support SAML 2.0, product by product, with citation chips after each claim and the Vault disagreement called out" width="600"/>
+  <img src="docs/media/screenshot.png" alt="Nimbus KB running locally: Claude Sonnet 5.5 answers which products support SAML 2.0 in a table, product by product, with citation chips on every row" width="600"/>
   <br><sub>Q5 locally, answered by Claude Sonnet 5.5. Every claim carries a citation chip, and the Vault documents that disagree are both cited.</sub>
 </div>
 
