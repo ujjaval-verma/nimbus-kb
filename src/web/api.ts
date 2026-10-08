@@ -20,11 +20,15 @@ export async function streamChat(body: { modelId: string; messages: ChatMessage[
   }
   const reader = r.body.pipeThrough(new TextDecoderStream()).getReader();
   let carry = "";
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    const parsed = parseSSE(value, carry);
-    carry = parsed.carry;
-    parsed.events.forEach(onEvent);
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const parsed = parseSSE(value, carry);
+      carry = parsed.carry;
+      parsed.events.forEach(onEvent);
+    }
+  } finally {
+    reader.cancel().catch(() => {});   // a failed or abandoned stream must not keep the request open
   }
 }

@@ -20,3 +20,9 @@ it("never renders model-supplied HTML, images or outside links (untrusted output
   expect(out).not.toMatch(/<script|<img|<a |href=|evil\.example|javascript:/i);
   expect(out).toContain("click");   // link text survives as plain text
 });
+
+it("renders a model-written link to a real source as plain text unless its label is the generated one", () => {
+  const out = html("[Refund approved](#src-vault.md#pricing)");
+  expect(out).not.toContain("data-cite");
+  expect(out).toContain("Refund approved");
+});

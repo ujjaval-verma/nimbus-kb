@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchModels, streamChat, type ModelsResponse } from "./api";
-import { contextUsage } from "./context";
+import { contextUsage, meterModel } from "./context";
 import { applyEvent, historyFor, totals, type Turn } from "./session";
 import { Banner } from "./components/Banner";
 import { Composer } from "./components/Composer";
@@ -46,7 +46,11 @@ export function App() {
     const body = { modelId: selectedId, messages: historyFor(turns, question) };
     setTurns((ts) => [...ts, { id, question, answer: "", status: "streaming", failed: [] }]);
     streamChat(body, (e) => update((t) => applyEvent(t, e)), ac.signal)
-      .catch(() => { if (!ac.signal.aborted) update((t) => applyEvent(t, { type: "error", message: "Lost the connection. Please try again." })); })
+      .catch(() => {
+        if (ac.signal.aborted) return;
+        update((t) => applyEvent(t, { type: "error", message: "Lost the connection. Please try again." }));
+        ac.abort();   // cancel whatever is still open
+      })
       .then(() => {
         if (ac.signal.aborted) return;
         update((t) => (t.status === "streaming" ? applyEvent(t, { type: "error", message: "The reply was cut off. Please try again." }) : t));
@@ -65,7 +69,8 @@ export function App() {
   if (!meta || !selected) return <main className="page"><p className="muted">Loading…</p></main>;
 
   const anyAvailable = meta.models.some((m) => m.available);
-  const usage = contextUsage({ turns, contextWindow: selected.contextWindow, systemPromptTokens: meta.systemPromptTokens, thresholds: meta.contextWarning });
+  const metered = meterModel(meta.models, selectedId, meta.fallbackOrder);
+  const usage = contextUsage({ turns, contextWindow: metered.contextWindow, systemPromptTokens: meta.systemPromptTokens, thresholds: meta.contextWarning });
   const pct = Math.min(100, Math.round(usage.ratio * 100));
   const sum = totals(turns);
 
@@ -78,7 +83,7 @@ export function App() {
         </div>
         <ModelPicker models={meta.models} value={selectedId} onChange={setModelId} />
         <div className="top-row">
-          <ContextMeter available={anyAvailable} modelName={selected.name} tokens={usage.tokens} contextWindow={selected.contextWindow}
+          <ContextMeter available={anyAvailable} modelName={metered.name} tokens={usage.tokens} contextWindow={metered.contextWindow}
             ratio={usage.ratio} level={usage.level} />
           <UsagePill {...sum} />
         </div>
@@ -89,8 +94,8 @@ export function App() {
         <div className={`callout ${usage.level === "red" ? "danger" : "warn"}`} role="status">
           <p>
             {usage.level === "amber"
-              ? `This conversation is using ${pct}% of ${selected.name}'s context window. Start a new chat soon; close to the limit, earlier messages get left out of answers.`
-              : `This conversation is nearly at ${selected.name}'s context limit (${pct}%). Soon earlier messages will be left out of answers. Start a new chat.`}
+              ? `This conversation is using ${pct}% of ${metered.name}'s context window. Start a new chat soon; close to the limit, earlier messages get left out of answers.`
+              : `This conversation is nearly at ${metered.name}'s context limit (${pct}%). Soon earlier messages will be left out of answers. Start a new chat.`}
           </p>
           <button type="button" onClick={newConversation}>Start a new chat</button>
         </div>

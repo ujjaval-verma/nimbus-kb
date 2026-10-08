@@ -26,3 +26,23 @@ it("history includes finished turns only, then the new question", () => {
   expect(historyFor([finished, errored], "next")).toEqual([
     { role: "user", content: "q" }, { role: "assistant", content: "a" }, { role: "user", content: "next" }]);
 });
+
+it("lists every attempted model that did not answer, without duplicates", () => {
+  let t = applyEvent(t0, { type: "attempt", modelId: "A" });
+  t = applyEvent(t, { type: "attempt", modelId: "B" });
+  t = applyEvent(t, { ...done, answeredBy: "B" });
+  expect(t.failed).toEqual(["A"]);
+
+  let u = applyEvent(t0, { type: "attempt", modelId: "A" });
+  u = applyEvent(u, { type: "delta", text: "x" });
+  u = applyEvent(u, { type: "reset", failedModelId: "A", kind: "unavailable" });
+  u = applyEvent(u, { type: "attempt", modelId: "B" });
+  u = applyEvent(u, { ...done, answeredBy: "B" });
+  expect(u.failed).toEqual(["A"]);
+});
+
+it("counts the last attempt as failed when sources-only answers instead", () => {
+  let t = applyEvent(t0, { type: "attempt", modelId: "A" });
+  t = applyEvent(t, { ...done, answeredBy: "sources-only" });
+  expect(t.failed).toEqual(["A"]);
+});

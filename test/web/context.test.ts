@@ -33,3 +33,13 @@ it("estimates from text when there is no model usage (sources-only turns)", () =
   const t: Turn = { id: "2", question: "q".repeat(3000), answer: "a".repeat(3000), status: "done", failed: [] };
   expect(contextUsage({ turns: [t], contextWindow: 200_000, systemPromptTokens: 0, thresholds }).tokens).toBe(2_000);
 });
+
+import { meterModel } from "../../src/web/context";
+
+it("meters against the first available model in [selected, ...fallbackOrder]", () => {
+  const m = (id: string, available: boolean) => ({ id, available }) as never;
+  const models = [m("openai", false), m("sonnet", true), m("haiku", true)];
+  expect(meterModel(models, "openai", ["sonnet", "haiku"]).id).toBe("sonnet");
+  expect(meterModel(models, "haiku", ["sonnet", "haiku"]).id).toBe("haiku");
+  expect(meterModel([m("a", false)], "a", ["a"]).id).toBe("a");
+});

@@ -9,7 +9,9 @@ function jumpTo(turnId: string, id: string) {
   if (!el) return;
   const details = el.querySelector("details");
   if (details) details.open = true;
+  el.tabIndex = -1;
   el.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  el.focus({ preventScroll: true });
   el.classList.remove("flash");
   void el.offsetWidth;   // restart the animation if it is already running
   el.classList.add("flash");

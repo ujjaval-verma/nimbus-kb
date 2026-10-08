@@ -8,3 +8,8 @@ it("parses complete events and carries partial ones across chunks", () => {
   expect(b.events).toEqual([{ type: "delta", text: "hi" }]);
   expect(b.carry).toBe("");
 });
+
+it("skips a malformed data block instead of throwing", () => {
+  const r = parseSSE('data: {not json}\n\ndata: {"type":"delta","text":"ok"}\n\n', "");
+  expect(r.events).toEqual([{ type: "delta", text: "ok" }]);
+});
