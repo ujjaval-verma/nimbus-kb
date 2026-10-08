@@ -153,7 +153,7 @@ test/        Vitest, mirroring src/, plus recorded fixtures in test/fixtures/
 - **Tests replay API fixtures recorded once.** A change in a provider's API shows up in the tests only when someone re-records them.
 - **Usage totals leave out failed attempts.** Tokens spent by a model that failed before the fallback answered are not in the usage totals.
 - **The sources-only keyword ranker would not scale.** It is fine for 37 sections; a large corpus would need real search.
-- **Token counts before the first reply are estimates** (characters divided by 3), as are the turns after the last reply.
+- **Token counts before the first reply are estimates** (characters divided by 2), as are the turns after the last reply.
 - **The browser holds the history,** so a user can edit their own past turns. That only affects their own conversation, and the prompt treats earlier assistant turns as not evidence.
 
 ## Security
