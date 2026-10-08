@@ -7,7 +7,16 @@ import { type Adapter, type AdapterChunk, ProviderError } from "./types";
 export function mapAnthropicError(err: unknown): ProviderError {
   const status = (err as { status?: unknown })?.status;
   const msg = err instanceof Error ? err.message : String(err);
-  if (typeof status !== "number") return new ProviderError("unavailable", msg);
+  if (typeof status !== "number") {
+    // A mid-stream SSE `error` event throws an APIError with no status; the API's error type is on `.type`
+    // (and in the parsed body at `.error.error.type`).
+    const e = err as { type?: unknown; error?: { error?: { type?: unknown } } };
+    const type = typeof e?.type === "string" ? e.type : e?.error?.error?.type;
+    if (type === "rate_limit_error") return new ProviderError("rate_limit", msg);
+    if (type === "authentication_error" || type === "permission_error") return new ProviderError("auth", msg);
+    if (type === "invalid_request_error") return new ProviderError("bad_request", msg);
+    return new ProviderError("unavailable", msg);   // overloaded_error, api_error, network errors, anything unknown
+  }
   if (status === 429) return new ProviderError("rate_limit", msg);
   if (status === 401 || status === 403) return new ProviderError("auth", msg);
   // An empty prepaid balance comes back as a 400 invalid_request_error, not a 402.

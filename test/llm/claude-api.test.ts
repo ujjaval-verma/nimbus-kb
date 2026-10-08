@@ -19,6 +19,13 @@ const replay = (name: string, seen?: SeenRequest[]) =>
 type Ev = { type: string; delta?: { type: string; text?: string }; message?: { usage: Record<string, number | null> }; usage?: Record<string, number | null> };
 const events = () => sseData(loadFixture("anthropic", "stream-ok").response.body) as Ev[];
 
+const sse = (events: object[]) => events.map((e) => `event: ${(e as { type: string }).type}\ndata: ${JSON.stringify(e)}\n\n`).join("");
+const handBuilt = (status: number, body: string): ReturnType<typeof loadFixture> => ({
+  provider: "anthropic", name: "hand-built", synthetic: true, recordedOn: "2026-10-08", note: "Synthetic. In-test stream.",
+  request: { method: "POST", url: "https://api.anthropic.com/v1/messages", model: "m", promptVersion: "n/a", question: "q" },
+  response: { status, contentType: "text/event-stream", body } });
+const adapterFor = (fx: ReturnType<typeof loadFixture>) => createClaudeApiAdapter({ apiKey: "test-key", fetch: replayFetch(fx), maxRetries: 0 });
+
 describe("claude-api adapter (replays recorded fixtures)", () => {
   it("is marked tested: it was recorded against the live API", () => {
     expect(replay("stream-ok").tested).toBe(true);
@@ -91,5 +98,42 @@ describe("claude-api adapter (replays recorded fixtures)", () => {
     ac.abort();
     await expect(it2.next()).rejects.toThrow();
     expect(seen[0].signal?.aborted).toBe(true);
+  });
+
+  it("reports distinct cache read and write tokens in the right fields", async () => {
+    const body = sse([
+      { type: "message_start", message: { id: "m", type: "message", role: "assistant", model: "m", content: [], stop_reason: null, stop_sequence: null,
+        usage: { input_tokens: 11, output_tokens: 1, cache_read_input_tokens: 700, cache_creation_input_tokens: 30 } } },
+      { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+      { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "hi" } },
+      { type: "content_block_stop", index: 0 },
+      { type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 5 } },
+      { type: "message_stop" }]);
+    const out = await collect(adapterFor(handBuilt(200, body)).stream(req()));
+    expect((out.at(-1) as { usage: Usage }).usage).toEqual({ input: 11, output: 5, cacheRead: 700, cacheWrite: 30 });
+  });
+
+  it("classifies a mid-stream error event by its error type", async () => {
+    const body = sse([
+      { type: "message_start", message: { id: "m", type: "message", role: "assistant", model: "m", content: [], stop_reason: null, stop_sequence: null,
+        usage: { input_tokens: 1, output_tokens: 1 } } },
+      { type: "error", error: { type: "overloaded_error", message: "Overloaded" } }]);
+    await expect(collect(adapterFor(handBuilt(200, body)).stream(req()))).rejects.toMatchObject({ kind: "unavailable" });
+    const rl = sse([{ type: "error", error: { type: "rate_limit_error", message: "slow down" } }]);
+    await expect(collect(adapterFor(handBuilt(200, rl)).stream(req()))).rejects.toMatchObject({ kind: "rate_limit" });
+  });
+
+  it("maps statusless errors by their error type", () => {
+    const t = (type: string | null) => mapAnthropicError(Object.assign(new Error("x"), { type }));
+    expect(t("rate_limit_error").kind).toBe("rate_limit");
+    expect(t("overloaded_error").kind).toBe("unavailable");
+    expect(t("api_error").kind).toBe("unavailable");
+    expect(t("authentication_error").kind).toBe("auth");
+    expect(t("permission_error").kind).toBe("auth");
+    expect(t("invalid_request_error").kind).toBe("bad_request");
+    expect(t("something_else").kind).toBe("unavailable");
+    expect(t(null).kind).toBe("unavailable");
+    const nested = Object.assign(new Error("x"), { error: { error: { type: "rate_limit_error" } } });
+    expect(mapAnthropicError(nested).kind).toBe("rate_limit");
   });
 });
