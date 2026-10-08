@@ -10,7 +10,8 @@ const QUESTIONS = [
 export function EmptyState({ onPick, disabled }: { onPick: (q: string) => void; disabled: boolean }) {
   return (
     <section className="empty">
-      <p>Ask anything about NimbusStack's four products. Every answer cites the documents it came from.</p>
+      <h2>Ask about NimbusStack's four products.</h2>
+      <p>Every answer cites the documents it came from.</p>
       <div className="suggestions">
         {QUESTIONS.map((q) => (
           <button key={q} type="button" className="suggestion" disabled={disabled} onClick={() => onPick(q)}>{q}</button>

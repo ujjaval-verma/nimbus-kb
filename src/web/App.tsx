@@ -70,10 +70,28 @@ export function App() {
     setTurns([]);
   };
 
-  if (loadFailed) {
-    return <main className="page"><div className="callout warn" role="alert">Couldn't reach the server. Refresh to try again.</div></main>;
+  if (loadFailed || !meta || !selected) {
+    // Same frame as the loaded page, so nothing moves when the model list arrives.
+    return (
+      <div className="page">
+        <header className="top">
+          <div className="top-row">
+            <h1>Nimbus KB</h1>
+            <button type="button" className="utility" disabled>New Conversation</button>
+          </div>
+          <div className="picker">
+            <label htmlFor="model-loading" className="sr-only">Model</label>
+            <select id="model-loading" disabled><option>{loadFailed ? "Models unavailable" : "Loading models…"}</option></select>
+            <p className="picker-desc" />
+          </div>
+          <div className="top-row pills" />
+        </header>
+        {loadFailed && <div className="callout warn" role="alert"><p>Couldn't reach the server. Refresh to try again.</p></div>}
+        <main className="thread"><EmptyState onPick={() => {}} disabled /></main>
+        <Composer streaming={false} disabled onSend={() => {}} />
+      </div>
+    );
   }
-  if (!meta || !selected) return <main className="page"><p className="muted">Loading…</p></main>;
 
   const anyAvailable = meta.models.some((m) => m.available);
   const metered = meterModel(meta.models, selectedId, meta.fallbackOrder);
@@ -89,10 +107,10 @@ export function App() {
       <header className="top">
         <div className="top-row">
           <h1>Nimbus KB</h1>
-          <button type="button" onClick={newConversation}>New Conversation</button>
+          <button type="button" className="utility" onClick={newConversation}>New Conversation</button>
         </div>
         <ModelPicker models={meta.models} value={selectedId} onChange={setModelId} />
-        <div className="top-row">
+        <div className="top-row pills">
           <ContextMeter available={anyAvailable} modelName={metered.name} tokens={usage.tokens} contextWindow={meterWindow}
             ratio={usage.ratio} level={usage.level} capped={capped} />
           <UsagePill {...sum} />
