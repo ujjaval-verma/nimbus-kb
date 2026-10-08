@@ -39,6 +39,19 @@ describe("public quota on /api/chat (Review Focus 6)", () => {
     expect(adapter.calls).toBe(N);
   });
 
+  it("an exhausted quota shows the card's notice and a neutral passages line, not 'No AI model could answer'", async () => {
+    const app = createApp({ registry: { anthropic: fakeAdapter({ chunks: ["ok"] }) }, quota: quota({ perVisitor: 1 }) });
+    await done(await ask(app));
+    const over = await done(await ask(app));
+    expect(over.notices).toEqual([
+      { kind: "quota_exhausted", text: "You've used today's 1 answer. Run it yourself for unlimited answers." },
+      { kind: "info", text: "These are the closest passages from the knowledge base, not a checked answer." }]);
+    const site = createApp({ registry: { anthropic: fakeAdapter({ chunks: ["ok"] }) }, quota: quota({ siteWide: 1 }) });
+    await done(await ask(site, { ip: "198.51.100.1" }));
+    const full = await done(await ask(site, { ip: "198.51.100.2" }));
+    expect(full.notices.map((n) => n.text).join(" ")).not.toMatch(/No AI model could answer/);
+  });
+
   it("a deployer's configured limit reaches the notice and the quota field", async () => {
     const app = createApp({ registry: { anthropic: fakeAdapter({ chunks: ["ok"] }) }, quota: quota({ perVisitor: 3 }) });
     for (let i = 0; i < 3; i++) await ask(app);

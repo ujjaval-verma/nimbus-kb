@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it } from "vitest";
+import { quotaNotice } from "../../src/llm/notices";
 import { QuotaCard, REPO_URL } from "../../src/web/components/QuotaCard";
 import { QuotaPill } from "../../src/web/components/QuotaPill";
 
@@ -20,4 +21,15 @@ it("the card says the limit is reached and how to run it yourself", () => {
   expect(html).not.toMatch(/API_KEY/);              // no key env names in client code: the bundle check forbids them
   expect(html).not.toMatch(/deploy\.workers/);      // no Deploy to Cloudflare link (user decision)
   expect(html).not.toMatch(/<img|\u2014/);          // the CSP allows no outside images; the copy has no em dashes
+});
+
+it("the pill reads correctly for a limit of 1 and of 10", () => {
+  expect(renderToStaticMarkup(<QuotaPill quota={{ limit: 1, remaining: 1 }} />)).toContain("1 of 1 answer left today");
+  expect(renderToStaticMarkup(<QuotaPill quota={{ limit: 10, remaining: 1 }} />)).toContain("1 of 10 answers left today");
+  expect(renderToStaticMarkup(<QuotaPill quota={{ limit: 10, remaining: 10 }} />)).toContain("10 of 10 answers left today");
+});
+
+it("the notice reads correctly for a limit of 1 and of 10", () => {
+  expect(quotaNotice("visitor", 1).text).toBe("You've used today's 1 answer. Run it yourself for unlimited answers.");
+  expect(quotaNotice("visitor", 10).text).toBe("You've used today's 10 answers. Run it yourself for unlimited answers.");
 });
