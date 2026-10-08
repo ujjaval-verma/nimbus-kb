@@ -1,0 +1,19 @@
+{
+  "provider": "gemini",
+  "name": "stream-thought",
+  "synthetic": true,
+  "recordedOn": "2026-10-07",
+  "note": "Synthetic. Imitates a stream with a thought-summary part before the answer, so thought exclusion and thinking-token billing are exercised. The recorded stream has no thought parts.",
+  "request": {
+    "method": "POST",
+    "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:streamGenerateContent?alt=sse",
+    "model": "gemini-3.5-flash-lite",
+    "promptVersion": "n/a",
+    "question": "What is the P1 response time for Vault Pro?"
+  },
+  "response": {
+    "status": 200,
+    "contentType": "text/event-stream",
+    "body": "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"thought\":true,\"text\":\"THINKING-SENTINEL\"},{\"text\":\"P1 is 1 hour for Vault Pro [vault.md#support-sla].\"}]},\"index\":0}],\"modelVersion\":\"gemini-3.5-flash-lite\"}\r\n\r\ndata: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"\"}]},\"finishReason\":\"STOP\",\"index\":0}],\"usageMetadata\":{\"promptTokenCount\":3100,\"candidatesTokenCount\":14,\"thoughtsTokenCount\":42,\"totalTokenCount\":3156},\"modelVersion\":\"gemini-3.5-flash-lite\"}\r\n\r\n"
+  }
+}

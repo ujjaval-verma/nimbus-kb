@@ -72,8 +72,26 @@ describe("gemini adapter (replays recorded fixtures)", () => {
     ["quota", "quota"],                  // synthetic: 429 RESOURCE_EXHAUSTED, per-day quota id
     ["unavailable", "unavailable"],      // synthetic: 503 UNAVAILABLE
     ["safety-blocked", "bad_request"],   // synthetic: 200, finishReason SAFETY, no text
+    ["prompt-blocked", "bad_request"],   // synthetic: 200, promptFeedback.blockReason SAFETY, no candidates
   ] as const)("classifies the %s fixture as %s", async (name, kind) => {
     await expect(collect(replay(name).stream(req()))).rejects.toMatchObject({ kind });
+  });
+
+  it("makes exactly one HTTP call on 429 and 503: the fallback chain is the retry, not the SDK", async () => {
+    for (const name of ["rate-limit", "unavailable"]) {
+      const seen: SeenRequest[] = [];
+      await expect(collect(replay(name, seen).stream(req()))).rejects.toBeDefined();
+      expect(seen.length).toBe(1);
+    }
+  });
+
+  it("drops thought parts from the answer but bills their tokens as output", async () => {
+    const out = await collect(replay("stream-thought").stream(req()));
+    const text = out.flatMap((c) => (c.type === "delta" ? [c.text] : [])).join("");
+    expect(text).not.toContain("THINKING-SENTINEL");
+    expect(extractCitations(text, SECTION_IDS).citedIds).toContain("vault.md#support-sla");
+    const usage = (out.at(-1) as { type: "usage"; usage: Usage }).usage;
+    expect(usage.output).toBe(14 + 42);
   });
 
   it("never turns MAX_TOKENS with no visible text into a silent empty answer", async () => {
