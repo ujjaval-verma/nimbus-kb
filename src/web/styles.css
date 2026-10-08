@@ -34,11 +34,11 @@ button {
   background: transparent; border: 1px solid var(--control-border); border-radius: var(--radius); padding: 6px 12px; cursor: pointer;
   transition: border-color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
 }
-button:hover:not(:disabled) { border-color: var(--accent); }
+button:hover:not(:disabled) { border-color: var(--accent-text); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 button.primary, button.utility { background: var(--accent-strong); border-color: var(--accent-strong); color: #ffffff; font-weight: 500; font-size: 14px; }
 button.primary:hover:not(:disabled), button.utility:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .mono { font-family: var(--mono); font-size: 12px; }
 .muted { color: var(--muted); }
@@ -125,7 +125,7 @@ button.primary:hover:not(:disabled), button.utility:hover:not(:disabled) { backg
   font: 500 12px var(--mono); background: var(--accent-soft); color: var(--accent-text); border: 1px solid transparent;
   border-radius: var(--radius-pill); padding: 1px 8px; margin: 0 1px;
 }
-.chip:hover:not(:disabled) { border-color: var(--accent); }
+.chip:hover:not(:disabled) { border-color: var(--accent-text); }
 
 /* Sources */
 .sources h3 {
@@ -138,8 +138,8 @@ button.primary:hover:not(:disabled), button.utility:hover:not(:disabled) { backg
 .source-path { font-weight: 500; color: var(--text); }
 .source-meta { color: var(--faint); }
 .flash { animation: flash 1.6s var(--ease); }
-@keyframes flash { from { outline: 2px solid var(--accent); outline-offset: 2px; } to { outline: 2px solid transparent; outline-offset: 2px; } }
-.source:focus { outline: 2px solid var(--accent); outline-offset: 2px; }   /* visible even when reduced motion turns .flash off */
+@keyframes flash { from { outline: 2px solid var(--accent-text); outline-offset: 2px; } to { outline: 2px solid transparent; outline-offset: 2px; } }
+.source:focus { outline: 2px solid var(--accent-text); outline-offset: 2px; }   /* visible even when reduced motion turns .flash off */
 
 /* Empty state */
 .empty { text-align: center; padding: 40px 0 24px; }
@@ -160,8 +160,8 @@ button.primary:hover:not(:disabled), button.utility:hover:not(:disabled) { backg
   background: var(--surface); max-height: calc(6 * 1.6em + 20px); overflow-y: auto; line-height: 1.6;
   transition: border-color var(--dur-fast) var(--ease);
 }
-.composer textarea:focus { border-color: var(--accent); outline: none; }
-.composer textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.composer textarea:focus { border-color: var(--accent-text); outline: none; }
+.composer textarea:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 .composer .primary { padding: 9px 16px; }
 
 /* Quota card */
