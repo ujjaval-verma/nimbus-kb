@@ -12,3 +12,4 @@ dist/
 .dev.vars
 .env*
 !.env.example
+.tmp/

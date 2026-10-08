@@ -1,0 +1,15 @@
+:root {
+  --bg: #f7f8fa; --surface: #ffffff; --text: #16191d; --muted: #5b6470; --border: #e3e6ea;
+  --accent: #2f6fed; --accent-soft: #e8efff; --warn: #b26a00; --warn-soft: #fff4e0;
+  --danger: #c0362c; --radius: 12px; --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 4px 12px rgb(16 24 40 / 6%);
+  --font: "Inter", system-ui, sans-serif; --mono: "JetBrains Mono", ui-monospace, monospace;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1216; --surface: #171b21; --text: #e8eaed; --muted: #9aa3ae; --border: #2a3039;
+    --accent: #7aa2ff; --accent-soft: #1d2a45; --warn: #f2b14a; --warn-soft: #33270f; --danger: #ff7a70;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); }
