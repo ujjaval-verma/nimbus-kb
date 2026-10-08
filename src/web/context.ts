@@ -23,11 +23,13 @@ export function contextUsage(o: { turns: Turn[]; contextWindow: number; systemPr
 }
 
 // The model whose window the meter reads: the one that would actually answer (a placeholder or unconfigured pick
-// falls through to the first available model in the fallback order).
+// falls through to the first available model in the fallback order). If nothing matches, read the smallest
+// implemented window, so the meter never depends on the order of models.json.
 export function meterModel(models: ModelInfo[], selectedId: string, fallbackOrder: string[]): ModelInfo {
   const ids = [selectedId, ...fallbackOrder];
   const found = ids.map((id) => models.find((m) => m.id === id)).find((m) => m?.available);
-  return found ?? models.find((m) => m.id === selectedId) ?? models[0];
+  const smallest = models.filter((m) => m.status === "implemented").sort((a, b) => a.contextWindow - b.contextWindow)[0];
+  return found ?? models.find((m) => m.id === selectedId) ?? smallest ?? models[0];
 }
 
 // On the public site history is capped well below the model's window; the meter measures against the smaller one.

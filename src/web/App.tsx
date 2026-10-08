@@ -55,12 +55,12 @@ export function App() {
     }, ac.signal)
       .catch(() => {
         if (ac.signal.aborted) return;
-        update((t) => applyEvent(t, { type: "error", message: "Lost the connection. Please try again." }));
+        update((t) => applyEvent(t, { type: "error", message: "Lost the connection. Try again." }));
         ac.abort();   // cancel whatever is still open
       })
       .then(() => {
         if (ac.signal.aborted) return;
-        update((t) => (t.status === "streaming" ? applyEvent(t, { type: "error", message: "The reply was cut off. Please try again." }) : t));
+        update((t) => (t.status === "streaming" ? applyEvent(t, { type: "error", message: "The answer was cut off. Try again." }) : t));
       });
   }, [meta, streaming, selectedId, turns]);
 
@@ -105,10 +105,10 @@ export function App() {
         <div className={`callout ${usage.level === "red" ? "danger" : "warn"}`} role="status">
           <p>
             {usage.level === "amber"
-              ? `This conversation uses ${pct}% ${of}. Near the limit, earlier messages get left out of answers. Start a new chat soon.`
-              : `This conversation uses ${pct}% ${of}. Earlier messages will soon be left out of answers. Start a new chat.`}
+              ? `This conversation is at ${pct}% ${of}. Near the limit, the oldest messages are left out of what the model sees. Start a new conversation soon.`
+              : `This conversation is at ${pct}% ${of}. The oldest messages will soon be left out of what the model sees. Start a new conversation.`}
           </p>
-          <button type="button" onClick={newConversation}>Start a new chat</button>
+          <button type="button" onClick={newConversation}>Start a new conversation</button>
         </div>
       )}
 

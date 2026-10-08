@@ -169,7 +169,7 @@ describe("runChain", () => {
     expect(a.lastReq!.maxOutputTokens).toBe(3_000);
     expect(a.lastReq!.messages).toEqual([{ role: "user", content: "what about its SLA?" }]);   // 30,000 estimate tokens > 20,000
     expect((evs.at(-1) as Extract<ChatEvent, { type: "done" }>).notices).toEqual([{ kind: "context",
-      text: "2 earlier messages were left out so the conversation fits the length this public site allows. Start a new chat for a clean slate." }]);
+      text: "2 earlier messages were left out so the conversation fits the length this public site allows. Start a new conversation for a clean slate." }]);
     const free = fakeAdapter({ chunks: ["ok"] });
     await run([{ model: sonnet, adapter: free }], { messages });
     expect(free.lastReq!.maxOutputTokens).toBeUndefined();

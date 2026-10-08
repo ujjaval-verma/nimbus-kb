@@ -4,15 +4,7 @@
   "contextWarning": { "amber": 0.75, "red": 0.9 },
   "models": [
     {
-      "id": "claude-haiku", "provider": "anthropic", "providerLabel": "Claude (Anthropic)",
-      "model": "claude-haiku-4-5", "name": "Claude Haiku 4.5",
-      "description": "Claude's smallest model. The last backup, after Gemini.",
-      "contextWindow": 200000,
-      "pricePerMTok": { "input": 1, "output": 5, "cacheRead": 0.1, "cacheWrite": 1.25 },
-      "status": "implemented"
-    },
-    {
-      "id": "claude-sonnet", "provider": "anthropic", "providerLabel": "Claude (Anthropic)",
+      "id": "claude-sonnet", "provider": "anthropic", "providerLabel": "Anthropic",
       "model": "claude-sonnet-5-5", "name": "Claude Sonnet 5.5",
       "description": "The default. Careful, cited answers across all four products.",
       "contextWindow": 1000000,
@@ -21,19 +13,27 @@
       "status": "implemented"
     },
     {
-      "id": "openai", "provider": "openai", "providerLabel": "OpenAI",
-      "model": "gpt-6-luna", "name": "GPT-6 Luna",
-      "description": "Placeholder. Listed for comparison, not implemented in this build.",
-      "contextWindow": 1050000, "pricePerMTok": { "input": 0.1, "output": 0.5 },
-      "status": "placeholder"
-    },
-    {
-      "id": "gemini-flash-lite", "provider": "google", "providerLabel": "Gemini (Google)",
+      "id": "gemini-flash-lite", "provider": "google", "providerLabel": "Google",
       "model": "gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash-Lite",
       "description": "Google's fast, low-cost model. The cross-provider backup.",
       "contextWindow": 1048576, "outputTokenLimit": 65536,
       "pricePerMTok": { "input": 0.3, "output": 2.5, "cacheRead": 0.03 },
       "status": "implemented"
+    },
+    {
+      "id": "claude-haiku", "provider": "anthropic", "providerLabel": "Anthropic",
+      "model": "claude-haiku-4-5", "name": "Claude Haiku 4.5",
+      "description": "Claude's smallest model. The last backup.",
+      "contextWindow": 200000,
+      "pricePerMTok": { "input": 1, "output": 5, "cacheRead": 0.1, "cacheWrite": 1.25 },
+      "status": "implemented"
+    },
+    {
+      "id": "openai", "provider": "openai", "providerLabel": "OpenAI",
+      "model": "gpt-6-luna", "name": "GPT-6 Luna",
+      "description": "Not implemented in this build.",
+      "contextWindow": 1050000, "pricePerMTok": { "input": 0.1, "output": 0.5 },
+      "status": "placeholder"
     }
   ]
 }

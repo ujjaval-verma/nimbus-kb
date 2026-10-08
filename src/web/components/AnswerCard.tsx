@@ -63,10 +63,14 @@ export function AnswerCard({ turn, nameOf }: { turn: Turn; nameOf: (id: string) 
         </section>
       )}
       {d && (
-        <p className="usage mono">
+        <p className="usage">
           {d.answeredBy === "sources-only"
-            ? "No model used · $0.0000"
-            : `${d.usage.input + d.usage.cacheRead + d.usage.cacheWrite} in · ${d.usage.output} out · $${d.costUsd.toFixed(4)}`}
+            ? <>No model used · <span className="num">$0.0000</span></>
+            : <>
+                <span className="num">{(d.usage.input + d.usage.cacheRead + d.usage.cacheWrite).toLocaleString("en-US")}</span> tokens in
+                {" · "}<span className="num">{d.usage.output.toLocaleString("en-US")}</span> out
+                {" · "}<span className="num">${d.costUsd.toFixed(4)}</span>
+              </>}
         </p>
       )}
     </article>

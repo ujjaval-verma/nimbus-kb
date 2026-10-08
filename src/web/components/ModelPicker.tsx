@@ -1,9 +1,9 @@
 import { useId } from "react";
 import type { ModelInfo } from "../api";
-import { fmtContext } from "../format";
+import { fmtContext, fmtPrice } from "../format";
 
 function suffix(m: ModelInfo): string {
-  if (m.status === "placeholder") return " (placeholder, not implemented)";
+  if (m.status === "placeholder") return "";   // the description already says so
   if (!m.available) return " (not configured here)";
   if (!m.tested) return " (untested)";
   return "";
@@ -22,7 +22,7 @@ export function ModelPicker({ models, value, onChange }: { models: ModelInfo[]; 
       </select>
       {sel && (
         <p className="picker-desc">
-          {`${sel.description} · ${fmtContext(sel.contextWindow)} context · $${sel.pricePerMTok.input}/$${sel.pricePerMTok.output} per MTok`}
+          {`${sel.description} · ${fmtContext(sel.contextWindow)} context · ${fmtPrice(sel.pricePerMTok.input)} in, ${fmtPrice(sel.pricePerMTok.output)} out per million tokens`}
           {sel.status === "placeholder" && <span className="badge warn">Placeholder, not implemented</span>}
           {sel.status === "implemented" && !sel.available && <span className="badge warn">Not configured here</span>}
           {sel.available && !sel.tested && <span className="badge warn">Untested</span>}

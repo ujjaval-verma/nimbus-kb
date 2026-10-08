@@ -10,7 +10,7 @@ it("streams a compact passage list and ends with a zero-cost done", () => {
   expect(done).toMatchObject({ type: "done", answeredBy: "sources-only", costUsd: 0, invalidRefCount: 0, uncited: false });
   if (done.type === "done") {
     expect(done.passages[0].id).toBe("vault.md#pricing");
-    expect(done.notices.some((n) => /not a checked answer/.test(n.text))).toBe(true);
+    expect(done.notices.some((n) => /not a composed answer/.test(n.text))).toBe(true);
   }
   expect(evs.filter((e) => e.type === "delta").length).toBeGreaterThan(1); // streamed in chunks
 });
@@ -27,6 +27,6 @@ it("always carries the sources-only notice, keeping notices passed in", () => {
     const done = sourcesOnlyEvents(q, [passed]).at(-1)!;
     if (done.type !== "done") throw new Error("expected done");
     expect(done.notices).toContainEqual(passed);
-    expect(done.notices.some((n) => /not a checked answer/.test(n.text))).toBe(true);
+    expect(done.notices.some((n) => /not a composed answer/.test(n.text))).toBe(true);
   }
 });

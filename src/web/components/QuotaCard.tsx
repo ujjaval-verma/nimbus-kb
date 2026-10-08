@@ -8,11 +8,13 @@ export function QuotaCard({ notice }: { notice: Notice }) {
   return (
     <section className="quota-card" aria-label="Daily answers used up">
       <p className="quota-title">{notice.text}</p>
+      <p>To keep going, run it yourself (no daily limit):</p>
       <ol>
         <li>Clone <a href={REPO_URL} target="_blank" rel="noopener noreferrer">the repo</a>.</li>
-        <li>Add your Anthropic and/or Gemini API key to a <code>.env</code> file (see <code>.env.example</code>).</li>
+        <li>Sign in to Claude Code, or add a Gemini API key to a <code>.env</code> file. To use an Anthropic API key instead, see <code>.env.example</code>.</li>
         <li>Run <code>npm install && npm run dev</code>.</li>
       </ol>
+      <p>Or read the <a href={`${REPO_URL}/blob/main/evals/results/latest.md`} target="_blank" rel="noopener noreferrer">sample answers recorded locally</a>.</p>
     </section>
   );
 }

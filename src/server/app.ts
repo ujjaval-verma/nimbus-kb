@@ -87,7 +87,7 @@ export function createApp(deps: AppDeps = {}): Hono {
 
   app.post("/api/chat", bodyLimit({
     maxSize: LIMITS.maxBodyBytes,
-    onError: (c) => c.json({ error: "This conversation is too large to send. Start a new chat." }, 413),
+    onError: (c) => c.json({ error: "This conversation is too large to send. Start a new conversation." }, 413),
   }), async (c) => {
     // Burst limit first, so floods are cheap to refuse.
     const quota = deps.quota;

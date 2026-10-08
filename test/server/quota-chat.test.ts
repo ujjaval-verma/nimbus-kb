@@ -34,7 +34,7 @@ describe("public quota on /api/chat (Review Focus 6)", () => {
     }
     const over = await done(await ask(app));
     expect(over.answeredBy).toBe("sources-only");
-    expect(over.notices[0]).toEqual({ kind: "quota_exhausted", text: "You've used today's 10 answers. Run it yourself for unlimited answers." });
+    expect(over.notices[0]).toEqual({ kind: "quota_exhausted", text: "You've used all of today's answers (10 a day per visitor). They reset at midnight UTC." });
     expect(over.quota).toEqual({ limit: N, remaining: 0 });
     expect(adapter.calls).toBe(N);
   });
@@ -44,8 +44,8 @@ describe("public quota on /api/chat (Review Focus 6)", () => {
     await done(await ask(app));
     const over = await done(await ask(app));
     expect(over.notices).toEqual([
-      { kind: "quota_exhausted", text: "You've used today's 1 answer. Run it yourself for unlimited answers." },
-      { kind: "info", text: "These are the closest passages from the knowledge base, not a checked answer." }]);
+      { kind: "quota_exhausted", text: "You've used all of today's answers (1 a day per visitor). They reset at midnight UTC." },
+      { kind: "info", text: "These are the matching passages from the knowledge base, not a composed answer." }]);
     const site = createApp({ registry: { anthropic: fakeAdapter({ chunks: ["ok"] }) }, quota: quota({ siteWide: 1 }) });
     await done(await ask(site, { ip: "198.51.100.1" }));
     const full = await done(await ask(site, { ip: "198.51.100.2" }));
@@ -56,7 +56,7 @@ describe("public quota on /api/chat (Review Focus 6)", () => {
     const app = createApp({ registry: { anthropic: fakeAdapter({ chunks: ["ok"] }) }, quota: quota({ perVisitor: 3 }) });
     for (let i = 0; i < 3; i++) await ask(app);
     const over = await done(await ask(app));
-    expect(over.notices[0].text).toBe("You've used today's 3 answers. Run it yourself for unlimited answers.");
+    expect(over.notices[0].text).toBe("You've used all of today's answers (3 a day per visitor). They reset at midnight UTC.");
     expect(over.quota).toEqual({ limit: 3, remaining: 0 });
   });
 

@@ -96,7 +96,7 @@ The other SHOULD item, the context-window warning, is built. See decision 7.
 
 **What I built:**
 - A context meter in the header. It counts what the next request would put in the window: the system prompt, the conversation the model actually received, and its answers. It counts at 3 characters per token, which overcounts on purpose, and uses exactly the same count the server uses for trimming, so the warnings always come before anything is left out.
-- Amber at 75% and red at 90% of the selected model's window (thresholds in `models.json`), each with a "Start a new chat" button. The meter recalculates as soon as the model changes, so moving from Sonnet (1M tokens) to Haiku (200K) updates it at once (E7).
+- Amber at 75% and red at 90% of the selected model's window (thresholds in `models.json`), each with a "Start a new conversation" button. The meter recalculates as soon as the model changes, so moving from Sonnet (1M tokens) to Haiku (200K) updates it at once (E7).
 - The server fits history to each model's own window (`src/llm/context.ts`), so a smaller backup model gets a smaller budget. Trimming starts only past 95% on the meter's scale. If older turns have to be left out, the answer says so in a notice. History is never cut silently and never rejected for length.
 - A test fails if the knowledge base grows past a quarter of the smallest model window, and its message points back to decision 1 (switch to retrieval).
 

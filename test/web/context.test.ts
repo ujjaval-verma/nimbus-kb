@@ -52,3 +52,9 @@ it("on the public site the meter uses the capped window, so amber and red come b
   expect(contextUsage({ turns: [modelTurn(19_000)], contextWindow: w, systemPromptTokens: 4_000, thresholds }).level).toBe("amber");
   expect(contextUsage({ turns: [modelTurn(24_000)], contextWindow: w, systemPromptTokens: 4_000, thresholds }).level).toBe("red");   // 24,000 = system + 20,000: trimming starts here
 });
+
+it("falls back to the smallest implemented window, whatever the list order", () => {
+  const m = (id: string, contextWindow: number, status = "implemented") => ({ id, available: false, contextWindow, status }) as never;
+  const models = [m("sonnet", 1_000_000), m("haiku", 200_000), m("openai", 50_000, "placeholder")];
+  expect(meterModel(models, "missing", []).id).toBe("haiku");
+});
