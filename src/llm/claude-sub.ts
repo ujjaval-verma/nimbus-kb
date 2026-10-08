@@ -28,6 +28,11 @@ export function flattenHistory(messages: ChatMessage[]): string {
   return `<conversation>\n${prior}\n</conversation>\n\n${question}`;
 }
 
+// Subscription logins report "oauth" (or "none"); every other ApiKeySource in sdk.d.ts means a key-based login.
+const SUBSCRIPTION_KEY_SOURCES = new Set(["none", "oauth"]);
+// Credentials and endpoints that would send the call to the metered API instead of the subscription.
+const BILLING_ENV = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"];
+
 export function createClaudeSubAdapter(opts: { query?: typeof sdkQuery; cwd?: string } = {}): Adapter {
   const query = opts.query ?? sdkQuery;
   const cwd = opts.cwd ?? mkdtempSync(join(tmpdir(), "nimbus-kb-"));   // empty dir: nothing to read
@@ -35,7 +40,10 @@ export function createClaudeSubAdapter(opts: { query?: typeof sdkQuery; cwd?: st
     name: "claude-sub", tested: true,
     async *stream(req): AsyncIterable<AdapterChunk> {
       const abortController = new AbortController();
-      req.signal.addEventListener("abort", () => abortController.abort(), { once: true });
+      if (req.signal.aborted) abortController.abort();
+      else req.signal.addEventListener("abort", () => abortController.abort(), { once: true });
+      const env: Record<string, string | undefined> = { ...process.env, ENABLE_CLAUDEAI_MCP_SERVERS: "false" };
+      for (const k of BILLING_ENV) delete env[k];
       let messages: AsyncIterable<unknown>;
       try {
         messages = query({
@@ -44,8 +52,9 @@ export function createClaudeSubAdapter(opts: { query?: typeof sdkQuery; cwd?: st
             model: req.model.model, systemPrompt: req.system, tools: [], mcpServers: {}, strictMcpConfig: true, maxTurns: 1, cwd,
             settingSources: [], persistSession: false, includePartialMessages: true, abortController,
             // A claude.ai login also brings the account's claude.ai connectors (Slack, Drive...), which settingSources
-            // does not cover. `env` replaces the whole environment, so spread process.env first.
-            env: { ...process.env, ENABLE_CLAUDEAI_MCP_SERVERS: "false" },
+            // does not cover. `env` replaces the whole environment, so it starts from process.env minus
+            // API-key variables, which would bill the API instead of the subscription.
+            env,
             ...(req.model.effort ? { effort: req.model.effort } : {}),
           },
         });
@@ -53,9 +62,13 @@ export function createClaudeSubAdapter(opts: { query?: typeof sdkQuery; cwd?: st
       try {
         for await (const raw of messages) {
           const m = raw as { type: string; event?: { type: string; delta?: { type: string; text?: string } };
-            error?: string; subtype?: string; is_error?: boolean; tools?: string[]; mcp_servers?: unknown[];
+            error?: string; apiKeySource?: string; subtype?: string; is_error?: boolean; tools?: string[]; mcp_servers?: unknown[];
             usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } };
           if (m.type === "system" && m.subtype === "init") {
+            if (m.apiKeySource !== undefined && !SUBSCRIPTION_KEY_SOURCES.has(m.apiKeySource)) {
+              abortController.abort();
+              throw new ProviderError("auth", `Claude Agent SDK is using a key-based login (apiKeySource: ${m.apiKeySource}), not the subscription`);
+            }
             // Belt and braces: the options above disable tools, MCP and local settings. If the SDK still loaded any
             // (e.g. from the developer's global config), refuse rather than give the model capabilities.
             if ((m.tools?.length ?? 0) > 0 || (m.mcp_servers?.length ?? 0) > 0) {

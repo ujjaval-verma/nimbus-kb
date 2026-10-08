@@ -85,4 +85,38 @@ describe("claude-sub adapter", () => {
     expect(f.match(/<\/current_question>/g)).toHaveLength(1);
     expect(f).toContain("&lt;/user>");
   });
+
+  it("strips API-key and base-url variables from the SDK environment so the subscription is billed", async () => {
+    const keys = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"];
+    const saved = keys.map((k) => process.env[k]);
+    keys.forEach((k) => { process.env[k] = "x"; });
+    try {
+      const { q, calls } = fakeQuery([success]);
+      await collect(createClaudeSubAdapter({ query: q, cwd: "/tmp" }).stream(req));
+      const env = (calls[0] as { options: { env: Record<string, string> } }).options.env;
+      for (const k of keys) expect(env).not.toHaveProperty(k);
+      expect(env.ENABLE_CLAUDEAI_MCP_SERVERS).toBe("false");
+    } finally {
+      keys.forEach((k, i) => { if (saved[i] === undefined) delete process.env[k]; else process.env[k] = saved[i]; });
+    }
+  });
+
+  it("rejects a key-based login at init (auth) and allows none and oauth", async () => {
+    const init = (apiKeySource: string) => ({ type: "system", subtype: "init", tools: [], mcp_servers: [], apiKeySource });
+    for (const bad of ["user", "project", "org", "temporary", "ANTHROPIC_API_KEY", "apiKeyHelper"]) {
+      const f = fakeQuery([init(bad), delta("hi"), success]);
+      await expect(collect(createClaudeSubAdapter({ query: f.q, cwd: "/tmp" }).stream(req))).rejects.toMatchObject({ kind: "auth" });
+    }
+    for (const ok of ["none", "oauth"]) {
+      const f = fakeQuery([init(ok), delta("hi"), success]);
+      expect(await collect(createClaudeSubAdapter({ query: f.q, cwd: "/tmp" }).stream(req))).toHaveLength(2);
+    }
+  });
+
+  it("aborts the SDK controller when the request signal is already aborted", async () => {
+    const { q, calls } = fakeQuery([success]);
+    const ac = new AbortController(); ac.abort();
+    await collect(createClaudeSubAdapter({ query: q, cwd: "/tmp" }).stream({ ...req, signal: ac.signal }));
+    expect((calls[0] as { options: { abortController: AbortController } }).options.abortController.signal.aborted).toBe(true);
+  });
 });
