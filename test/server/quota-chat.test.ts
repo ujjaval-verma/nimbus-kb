@@ -186,6 +186,14 @@ describe("public quota: hard history bound and reservation edge cases", () => {
     expect(await g2.peek(IP)).toMatchObject({ remaining: N - 1 });
   });
 
+  it("a question that ends sources-only after a model streamed text keeps its answer used (that model was billed)", async () => {
+    const g = quota();
+    const d = await done(await ask(createApp({ registry: { anthropic: fakeAdapter({ chunks: ["partial"], failWith: "unavailable" }) }, quota: g })));
+    expect(d.answeredBy).toBe("sources-only");
+    expect(d.quota).toEqual({ limit: N, remaining: N - 1 });
+    expect(await g.peek(IP)).toMatchObject({ remaining: N - 1 });
+  });
+
   it("a failing burst limiter answers 503 in plain language and calls no model", async () => {
     const adapter = fakeAdapter({ chunks: ["ok"] });
     const g = { ...quota(), allowBurst: async () => { throw new Error("limiter down"); } };

@@ -156,17 +156,21 @@ export function createApp(deps: AppDeps = {}): Hono {
       stream.onAbort(() => ac.abort());
       // A client that disconnects mid-answer keeps its reservation: a model was already called.
       let modelAnswered = false;
-      let modelStreamed = false;   // some model sent text, so it was billed: an unexpected error keeps the reservation
+      // A model that sent text was billed, so its reservation is kept whatever the outcome. A link that streamed and then
+      // failed always emits "reset"; sources-only passages also arrive as "delta", so deltas alone prove nothing at "done".
+      let modelStreamed = false;
+      let sawDelta = false;
       try {
         for await (const ev of runChain({ links, skipped, system: SYSTEM, messages, query, signal: ac.signal,
           firstTokenTimeoutMs: deps.firstTokenTimeoutMs, limits })) {
           // Backstop: onAbort already aborts the chain; this also stops writing if a late event slips through.
           if (stream.aborted || ac.signal.aborted) break;
           let out = ev;
-          if (ev.type === "delta") modelStreamed = true;
+          if (ev.type === "reset") modelStreamed = true;
+          if (ev.type === "delta") sawDelta = true;
           if (ev.type === "done") {
             modelAnswered = ev.answeredBy !== "sources-only";
-            if (reservation?.ok && !modelAnswered) {        // total failure: give the answer back
+            if (reservation?.ok && !modelAnswered && !modelStreamed) {   // no model answered or was billed: give it back
               await reservation.release().catch((err: unknown) => console.error("[quota] release failed", err));
               quotaView = { ...reservation, remaining: reservation.remaining + 1 };
             }
@@ -175,7 +179,8 @@ export function createApp(deps: AppDeps = {}): Hono {
           await stream.writeSSE({ event: out.type, data: JSON.stringify(out) });
         }
       } catch (err) {
-        if (reservation?.ok && !modelAnswered && !modelStreamed) await reservation.release().catch(() => {});
+        // Before "done", any text came from a model (sources-only text is only yielded right before its "done").
+        if (reservation?.ok && !modelAnswered && !modelStreamed && !sawDelta) await reservation.release().catch(() => {});
         if (stream.aborted) return;
         console.error("[chat] unexpected", err);
         await stream.writeSSE({ event: "error", data: JSON.stringify({ type: "error", message: "Something went wrong on our side. Please try again." }) });
