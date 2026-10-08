@@ -2,7 +2,7 @@
 
 Recorded locally with Claude Sonnet 5.5 (`claude-sonnet-5-5`), prompt 2026-10-07.2, on 2026-10-07. 18/18 passed. Total estimated cost at API list prices: $0.1394.
 
-These are the brief's six sample questions, its edge cases and four prompt-injection attempts, run with the same prompt, fallback chain and citation code as the app, through the local Claude subscription adapter (which sends prior turns as tagged text, where the live API adapter sends real message roles). The public site allows only a few answers a day per visitor, so this page shows every case in one place.
+These are the brief's six sample questions, its edge cases and four prompt-injection attempts, run with the same prompt, fallback chain and citation code as the app, through the local Claude subscription adapter (which sends prior turns as tagged text, where the live API adapter sends real message roles). Checks are keyword and citation heuristics; each answer was also fact-checked by hand against the knowledge base. The public site allows only a few answers a day per visitor, so this page shows every case in one place.
 
 ## Q1: Pro vs Enterprise comparison (PASS)
 
