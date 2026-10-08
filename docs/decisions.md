@@ -34,7 +34,7 @@ The knowledge base is 10 markdown files: 10,112 bytes, 1,775 words, about 3,000 
 - The first backup is on another provider. A second Claude model does not help when Anthropic itself is down or my account hits a limit, so Gemini 3.5 Flash-Lite comes before Haiku. It is fast and cheap, which suits a backup that should rarely run. Haiku stays last, so a Sonnet outage still gets a composed answer even without a Gemini key.
 - The choice is checked, not assumed: `npm run eval` runs the six sample questions, the edge cases and four prompt-injection attempts against the default model and records the answers in `evals/results/latest.md`.
 
-**Result:** Claude Sonnet 5.5 at low effort passed 18 of 18 cases on the first run (prompt 2026-10-07.1, no prompt changes needed), including four prompt-injection attempts; the full run cost $0.11 at API list prices. See `evals/results/latest.md`.
+**Result:** Claude Sonnet 5.5 at low effort passed 18 of 18 cases with prompt 2026-10-07.2, including four prompt-injection attempts; the full run cost $0.14 at API list prices. See `evals/results/latest.md`.
 
 **Revisit when:** evals show misses at low effort (raise effort first), or the corpus gets large and messy enough that reasoning across it gets hard.
 

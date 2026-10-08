@@ -27,3 +27,9 @@ it("escapes section attributes and keeps section bodies from closing the wrapper
   expect(p).toContain('path="Odd &quot;path&quot; &lt;x&gt; &amp; y"');
   for (const s of SECTIONS) expect(s.text).not.toMatch(/<\/?(section|knowledge_base)\b/i);
 });
+
+it("flags contradicted facts every time and never assumes today's date", () => {
+  const p = buildSystemPrompt(SECTIONS);
+  expect(p).toMatch(/Flag the disagreement every time you state a fact that another section contradicts/);
+  expect(p).toMatch(/You do not know today's date, so never say which value applies "today" or "now"/);
+});
