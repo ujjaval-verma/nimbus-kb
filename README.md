@@ -183,7 +183,7 @@ Most decisions record what was built, why, and what would make it change. Full t
 - [2. A mid-tier model at low effort](docs/decisions.md#2-a-mid-tier-model-at-low-effort-not-a-frontier-model): careful reading of 6,400 tokens doesn't need a frontier model, and latency matters more.
 - [3. Two providers, one adapter interface](docs/decisions.md#3-two-providers-implemented-and-tested-openai-is-a-placeholder-behind-the-same-adapter), recorded once and replayed offline. OpenAI is a placeholder.
 - [4. Real keys on the public site](docs/decisions.md#4-the-public-site-has-real-keys-behind-a-password-and-a-daily-quota), and the arithmetic that bounds the spend.
-- [5. Usage export left out](docs/decisions.md#5-one-should-item-is-left-out-usage-export): a session costs fractions of a cent.
+- [5. Usage export left out](docs/decisions.md#5-usage-export-is-left-out): a session costs fractions of a cent.
 - [6. Platform and tooling](docs/decisions.md#6-platform-and-tooling): one Worker, no vector database, official SDKs.
 - [7. The context-window warning](docs/decisions.md#7-the-context-window-warning-is-built-because-the-context-stays-small-is-an-assumption), because "the context stays small" is an assumption.
 - [8. Prompt injection and untrusted output](docs/decisions.md#8-prompt-injection-and-untrusted-output): the threat model and each defence.

@@ -1,6 +1,6 @@
 # Design decisions
 
-The choices behind Nimbus KB, reasoned from first principles and from the size of the corpus it serves. Lines marked **Brief** quote the original requirements the project was built against; most decisions then say what was built, why, and what would make me revisit it.
+The choices behind Nimbus KB, reasoned from first principles and from the size of the corpus it serves. Most decisions say what was built, why, and what would make me revisit it.
 
 ## The corpus, measured
 
@@ -8,14 +8,14 @@ The knowledge base is 10 markdown files: 10,112 bytes, 1,775 words, split into 3
 
 ## 1. The whole knowledge base goes to the model, instead of retrieving passages first
 
-**Brief (R2):** "Find the relevant parts of the documents before calling the AI model. Every answer shows the passages it came from."
+**The usual approach:** find the relevant passages first, then call the model with only those, and show the passages each answer came from.
 
 **What I built:** every request sends all 37 sections (32 headings plus 5 document overviews) to the model, each labelled with a stable ID such as `vault.md#pricing`. The model cites those IDs inline. The server checks every cited ID exists, and the UI shows exactly those sections under the answer.
 
 **Why:**
 - Retrieval exists to fit a large corpus into a small window. At about 6,400 tokens there is nothing to fit, so retrieval only adds a way to be wrong: if the right passage is not retrieved, the model cannot answer from it.
-- The brief's hardest questions are retrieval failures waiting to happen. Q5 ("which of our products support SAML?") is only correct if every product's sign-in section comes back. E1 ("what about its SLA?") needs the product carried over from earlier turns. E5 ("single sign-on") needs synonym matching to find "SAML" and "federated login". An early design review of a retrieval pipeline for this corpus found three bugs of exactly this kind. With the full corpus in context, recall is 100% by construction and the model handles wording and follow-ups itself.
-- The second half of R2 is kept, and made stronger: the passages shown are the ones the answer actually cited, not the ones a ranker guessed were relevant.
+- The hardest questions for this corpus are retrieval failures waiting to happen. "Which of our products support SAML?" (eval case Q5) is only correct if every product's sign-in section comes back. "What about its SLA?" (E1) needs the product carried over from earlier turns. "Single sign-on" (E5) needs synonym matching to find "SAML" and "federated login". An early design review of a retrieval pipeline for this corpus found three bugs of exactly this kind. With the full corpus in context, recall is 100% by construction and the model handles wording and follow-ups itself.
+- The second half of the usual approach is kept, and made stronger: the passages shown are the ones the answer actually cited, not the ones a ranker guessed were relevant.
 
 **Where retrieval still lives:** a simple keyword ranker picks passages for the sources-only fallback (decision 4), which runs when no AI provider is available or the public site's daily quota is used up.
 
@@ -23,7 +23,7 @@ The knowledge base is 10 markdown files: 10,112 bytes, 1,775 words, split into 3
 
 ## 2. A mid-tier model at low effort, not a frontier model
 
-**Brief:** a dropdown of Claude, OpenAI and Gemini; model choice is open.
+**The question:** which model answers by default, and which answer when it fails, from a picker that spans Claude, OpenAI and Gemini.
 
 **What I built:** the default is Claude Sonnet 5.5 at low reasoning effort. If it fails, Gemini 3.5 Flash-Lite answers, and after that Claude Haiku 4.5. None of them is a frontier model (Anthropic's Opus and Fable tiers). Model details (description, price, context window, effort, fallback order) live in `src/llm/models.json`.
 
@@ -32,15 +32,15 @@ The knowledge base is 10 markdown files: 10,112 bytes, 1,775 words, split into 3
 - Latency matters more than depth for the people this is for. A sales executive on a live customer call wants the answer in a second or two, so Sonnet runs at low effort.
 - Sonnet rather than the smaller Haiku: one tier up buys a margin on the cases that are easiest to get subtly wrong (the documents that disagree, the complete cross-product answer), and keeps the eval to a single run on a single default.
 - The first backup is on another provider. A second Claude model does not help when Anthropic itself is down or my account hits a limit, so Gemini 3.5 Flash-Lite comes before Haiku. It is fast and cheap, which suits a backup that should rarely run. Haiku stays last, so a Sonnet outage still gets a composed answer even without a Gemini key.
-- The choice is checked, not assumed: `npm run eval` runs the six sample questions, the edge cases and four prompt-injection attempts against the default model and records the answers in `evals/results/latest.md`.
+- The choice is checked, not assumed: `npm run eval` runs 18 cases (eight product questions, six edge cases and four prompt-injection attempts) against the default model and records the answers in `evals/results/latest.md`.
 
-**Result:** Claude Sonnet 5.5 at low effort passed 18 of 18 cases with prompt 2026-10-07.2, including four prompt-injection attempts; the full run cost $0.14 at API list prices. Checks are keyword and citation heuristics; each answer was also fact-checked by hand against the knowledge base. See `evals/results/latest.md`.
+**Result:** Claude Sonnet 5.5 at low effort passed 18 of 18 cases with prompt 2026-10-07.2, including four prompt-injection attempts; the full run would cost $0.14 at API list prices. Checks are keyword and citation heuristics; each answer was also fact-checked by hand against the knowledge base. See `evals/results/latest.md`.
 
 **Revisit when:** evals show misses at low effort (raise effort first), or the corpus gets large and messy enough that reasoning across it gets hard.
 
 ## 3. Two providers implemented and tested; OpenAI is a placeholder behind the same adapter
 
-**Brief (R3):** switch between Claude, OpenAI and Gemini, with automatic fallback to a backup provider. "A placeholder for the others is okay, tell us on the call."
+**The goal:** switch between Claude, OpenAI and Gemini, with automatic fallback to a backup provider, without each provider leaking into the rest of the app.
 
 **What I built:**
 - All model calls go through one small `Adapter` interface (`src/llm/types.ts`): stream text, report token usage, and classify failures as rate limit, quota, auth, unavailable or bad request. The fallback chain only ever talks to that interface. A link that gives no first token within 20 seconds, goes quiet for 30 seconds mid-answer, or ends with an empty reply counts as unavailable, and the chain moves on.
@@ -56,17 +56,17 @@ The knowledge base is 10 markdown files: 10,112 bytes, 1,775 words, split into 3
 
 ## 4. The public site has real keys, behind a password and a daily quota
 
-**Brief:** "At least one provider must work on your live link." Also: an API key visible in the browser fails the assessment.
+**The tension:** a public demo is only worth visiting if a real model answers, but a provider key must never reach the browser, and every answer spends money.
 
 **What I built:** the live site at `nimbus.ujjaval.ca` answers with Claude Sonnet 5.5, with Gemini 3.5 Flash-Lite as the backup. Both keys are Worker secrets: they stay on Cloudflare's servers and never reach the browser, and the build checks that no key names or key-shaped strings end up in the browser bundle. The keys are only used behind a quota: three caps (per visitor, site-wide, per request) plus a burst limit per visitor.
-- **Per visitor:** 25 model answers a day, enough for the six sample questions, the edge cases and follow-ups. A visitor is an IP address (for IPv6, the /64 block a home or server usually gets).
+- **Per visitor:** 25 model answers a day, enough to try every eval case plus follow-ups. A visitor is an IP address (for IPv6, the /64 block a home or server usually gets).
 - **Site-wide:** 300 model answers a day, for everyone together. That is 12 people using their full allowance, far more than this demo should see.
 - **Per request:** at most 60,000 bytes of conversation history (about 15,000 tokens of English) in at most 40 messages, and a 3,000-token reply (the longest eval answer was 2,172 tokens, and a reply cut short can lose its citations). History is measured in bytes, not characters: a Chinese character or an emoji takes several bytes and can cost up to one token per byte.
 - **Burst:** about 3 questions every 10 seconds per visitor.
 
 The per-visitor and site-wide numbers are settings in `wrangler.json`, so anyone deploying their own copy can change them. A value that isn't a positive whole number switches the models off and logs why. It never means unlimited.
 
-**Password gate:** the whole site (the page, the static assets and `/api/*`) sits behind HTTP Basic Auth, the browser's own password prompt. Plain-http requests are redirected to https (308) before the gate runs, and responses carry HSTS, so the password is never prompted for or sent in cleartext (localhost is exempt for local development). The password is a Worker secret, `SITE_PASSWORD`, and is shared with the evaluators alongside the link. The username is ignored. It keeps crawlers and bots from spending the day's answers, which is what made it safe to raise the per-visitor limit to 25.
+**Password gate:** the whole site (the page, the static assets and `/api/*`) sits behind HTTP Basic Auth, the browser's own password prompt. Plain-http requests are redirected to https (308) before the gate runs, and responses carry HSTS, so the password is never prompted for or sent in cleartext (localhost is exempt for local development). The password is a Worker secret, `SITE_PASSWORD`, and is shared on request. The username is ignored. It keeps crawlers and bots from spending the day's answers, which is what made it safe to raise the per-visitor limit to 25.
 - **Why not Cloudflare Access:** every visitor would have to sign in with an emailed code. A shared password is one prompt.
 - **Unset means open:** a fork without the secret serves an open, quota-limited site (the Worker logs a warning once).
 - **No gate locally:** the Node server has none, because it only listens on 127.0.0.1.
@@ -75,7 +75,7 @@ The per-visitor and site-wide numbers are settings in `wrangler.json`, so anyone
 
 **When the quota runs out:** The quota resets at midnight UTC. Until then the site still answers, with the most relevant passages from the knowledge base and a card that shows how to run it yourself in three steps. When no passage matches the question's key terms, it replies "That isn't covered in the NimbusStack knowledge base." without any model call. Keyword matching is cruder than a model: a question that shares words with the documents but isn't answered by them (say, an uptime figure) gets the nearest passages rather than that line. The Worker only turns the models on when the quota is set up, so a half-configured deploy serves sources-only answers, not open keys.
 
-**Why a quota instead of no keys:** quoted passages alone hide the product the brief asks for. The system prompt is about 6,400 tokens on Claude (the arithmetic below rounds it up to 7,000) and is cached, so repeat questions read it at a tenth of the input price. At Sonnet's list prices a typical question costs about a cent. Tokenizers use at most one token per byte, so the byte cap bounds a request at about 60,000 history tokens in any language. The worst request then costs about $0.15 with a warm cache and $0.17 without, so a full day of 300 is $45 to $50. The largest English request is about 15,000 history tokens, $0.06 to $0.08, and a normal day costs far less. A failed attempt can still be billed: if Sonnet, Gemini and Haiku all fail after being billed for the full request, one question costs about $0.28, and a full day about $84. That is about the ceiling in practice, because a question counts once any model has streamed text (a link cut off before its first token, or one that returns no text, can still be billed without counting, but nobody can steer that). The hard bound on money is the spend limit at the providers.
+**Why a quota instead of no keys:** quoted passages alone would hide what the app is for: composed, cited answers. The system prompt is about 6,400 tokens on Claude (the arithmetic below rounds it up to 7,000) and is cached, so repeat questions read it at a tenth of the input price. At Sonnet's list prices a typical question costs about a cent. Tokenizers use at most one token per byte, so the byte cap bounds a request at about 60,000 history tokens in any language. The worst request then costs about $0.15 with a warm cache and $0.17 without, so a full day of 300 is $45 to $50. The largest English request is about 15,000 history tokens, $0.06 to $0.08, and a normal day costs far less. A failed attempt can still be billed: if Sonnet, Gemini and Haiku all fail after being billed for the full request, one question costs about $0.28, and a full day about $84. That is about the ceiling in practice, because a question counts once any model has streamed text (a link cut off before its first token, or one that returns no text, can still be billed without counting, but nobody can steer that). The hard bound on money is the spend limit at the providers.
 
 **Why per-IP limits alone are not protection:** anyone can change their IP address with a phone network or a VPN, so the per-visitor limit only stops one person from using up the day for everyone else. What bounds the spend is the site-wide cap and, behind it, limits at the providers: a monthly spend limit on the Anthropic workspace that holds the key, and a budget alert on the Google Cloud project for the Gemini key.
 
@@ -88,11 +88,11 @@ The per-visitor and site-wide numbers are settings in `wrangler.json`, so anyone
 
 **Revisit when:** the password leaks or abuse shows up in the logs (rotate the secret, or add Cloudflare Turnstile), or real use outgrows 300 answers a day.
 
-## 5. One SHOULD item is left out: usage export
+## 5. Usage export is left out
 
-**Usage export (CSV or JSON):** a session costs fractions of a cent. Per-message tokens and cost, plus running session totals, are shown in the UI (required by R4); exporting them adds a feature nobody here needs.
+**Usage export (CSV or JSON):** a session costs fractions of a cent. Per-message tokens and cost, plus running session totals, are shown in the UI; exporting them adds a feature nobody here needs.
 
-The other SHOULD item, the context-window warning, is built. See decision 7.
+The context-window warning, by contrast, is built. See decision 7.
 
 ## 6. Platform and tooling
 
@@ -101,21 +101,21 @@ The other SHOULD item, the context-window warning, is built. See decision 7.
 
 ## 7. The context-window warning is built, because "the context stays small" is an assumption
 
-**Brief (R4, SHOULD):** "Warn the user as the conversation gets close to the model's context-window limit (amber at 75%, red at 90%), and update the warning when they switch models." E7: switching to a model with a smaller window updates the warning right away.
+**The goal:** warn the user as the conversation gets close to the model's context window (amber at 75%, red at 90%), and update the warning the moment they switch to a model with a smaller window.
 
 **What I built:**
 - A context meter in the header. It counts what the next request would put in the window: the system prompt, the conversation the model actually received, and its answers. It counts at 2 characters per token, which overcounts on purpose (the system prompt measured 6,369 real Claude tokens against an estimate of 7,790; the knowledge base is tables, ids and markdown, which tokenize worse than prose, so 3 would have undercounted), and uses exactly the same count the server uses for trimming, so the warnings always come before anything is left out.
-- Amber at 75% and red at 90% of the selected model's window (thresholds in `models.json`), each with a "Start a new conversation" button. The meter recalculates as soon as the model changes, so moving from Sonnet (1M tokens) to Haiku (200K) updates it at once (E7).
+- Amber at 75% and red at 90% of the selected model's window (thresholds in `models.json`), each with a "Start a new conversation" button. The meter recalculates as soon as the model changes, so moving from Sonnet (1M tokens) to Haiku (200K) updates it at once.
 - The server fits history to each model's own window (`src/llm/context.ts`), so a smaller backup model gets a smaller budget. Trimming starts only past 95% on the meter's scale. If older turns have to be left out, the answer says so in a notice. History is never cut silently and never rejected for length.
 - A test fails if the knowledge base grows past a quarter of the smallest model window, and its message points back to decision 1 (switch to retrieval).
 
-**Why, given decision 1 says the corpus is small:** the corpus is small today, but conversations, model choices and the documents can all change. An early draft cut history at a fixed 24,000 characters without telling anyone, which is exactly the kind of quiet failure this assessment is about. Measuring real usage and announcing any trimming costs little and keeps the app honest when the assumption stops holding.
+**Why, given decision 1 says the corpus is small:** the corpus is small today, but conversations, model choices and the documents can all change. An early draft cut history at a fixed 24,000 characters without telling anyone, which is exactly the kind of quiet failure a grounded assistant must not have. Measuring real usage and announcing any trimming costs little and keeps the app honest when the assumption stops holding.
 
-**On the live site** history is capped at 60,000 bytes (about 15,000 tokens of English) in at most 40 messages to keep each answer's cost small (decision 4), so the meter measures against that cap. For English text within 40 messages its warnings still come before anything is left out; otherwise the trim notice still says what was left out. The cap is the same for every model, so switching from Sonnet to Haiku there does not move the meter (E7), and amber and red only show in a long conversation within the cap. Both are visible running locally, where each model has its own window.
+**On the live site** history is capped at 60,000 bytes (about 15,000 tokens of English) in at most 40 messages to keep each answer's cost small (decision 4), so the meter measures against that cap. For English text within 40 messages its warnings still come before anything is left out; otherwise the trim notice still says what was left out. The cap is the same for every model, so switching from Sonnet to Haiku there does not move the meter, and amber and red only show in a long conversation within the cap. Both are visible running locally, where each model has its own window.
 
 ## 8. Prompt injection and untrusted output
 
-**Brief:** answers must come from the documents (an automatic fail otherwise), and keys must never reach the browser.
+**What must hold:** answers come only from the documents, and keys never reach the browser.
 
 **Threat model:** the knowledge base and the system prompt are public in this repo, so leaking them costs nothing. The model has no tools, so it cannot read files, browse or act. The browser holds the conversation, so a user who tampers with it only affects their own conversation. What is left to defend is the grounding guarantee, the user's browser, the provider keys on the live site (decision 4), and the developer's Claude login during local use.
 
