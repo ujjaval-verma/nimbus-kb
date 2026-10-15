@@ -1,117 +1,96 @@
-# Nimbus KB
-
-> *Answers about NimbusStack's products, taken only from its own documents, with the sources one click away.*
-
-<p align="center">
-  <img src="https://img.shields.io/badge/TypeScript-5.9-blue?style=flat-square" alt="TypeScript 5.9"/>
-  <img src="https://img.shields.io/badge/React-19-61dafb?style=flat-square" alt="React 19"/>
-  <img src="https://img.shields.io/badge/Cloudflare-Workers%20%2B%20Hono-f38020?style=flat-square" alt="Cloudflare Workers and Hono"/>
-  <img src="https://img.shields.io/badge/tested%20with-Vitest-success?style=flat-square" alt="Tested with Vitest"/>
-</p>
-
-**Try it:** https://nimbus.ujjaval.ca (password protected: any username works, e.g. `demo`; only the password is checked, and it comes with the submission)
-
-The live site answers with Claude Sonnet 5.5, with Gemini 3.5 Flash-Lite as the backup. Each visitor gets 25 model answers a day (300 site-wide), then sources-only answers; composed answers for every eval case are in [`evals/results/latest.md`](evals/results/latest.md), and running it locally has no limit.
-
 <div align="center">
-  <img src="docs/media/screenshot.png" alt="Nimbus KB running locally: Claude Sonnet 5.5 answers which products support SAML 2.0 in a table, product by product, with citation chips on every row" width="600"/>
-  <br><sub>Q5 locally, answered by Claude Sonnet 5.5, with citation chips on every row.</sub>
+  <h1>Nimbus KB</h1>
+
+  <p><em>Answers about a product line, taken only from its own documents, with the sources one click away.</em><br/>
+  <sub>A grounded chatbot with checked citations, a cross-provider fallback and a public deployment that bounds its own spend.</sub></p>
+
+  <p>
+    <img src="https://img.shields.io/badge/TypeScript-5.9-blue?style=flat-square" alt="TypeScript 5.9"/>
+    <img src="https://img.shields.io/badge/React-19-61dafb?style=flat-square" alt="React 19"/>
+    <img src="https://img.shields.io/badge/Cloudflare-Workers%20%2B%20Hono-f38020?style=flat-square" alt="Cloudflare Workers and Hono"/>
+    <img src="https://img.shields.io/badge/tested%20with-Vitest-success?style=flat-square" alt="Tested with Vitest"/>
+    <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="license MIT"/>
+  </p>
+
+  <p>
+    <a href="#live-demo"><strong>Live demo</strong></a> ·
+    <a href="evals/results/latest.md"><strong>Eval results</strong></a> ·
+    <a href="docs/decisions.md"><strong>Decisions</strong></a> ·
+    <a href="#run-it-locally"><strong>Run locally</strong></a> ·
+    <a href="#deploy-your-own"><strong>Deploy your own</strong></a>
+  </p>
 </div>
 
-Nimbus KB is an internal chatbot for NimbusStack staff: sales on a live call, support chasing an error, trainers onboarding new hires. It answers from the 10 markdown files in [`nimbusstack-knowledge-base/`](nimbusstack-knowledge-base/) and nothing else. If the documents don't cover a question, it says "That isn't covered in the NimbusStack knowledge base." If two documents disagree, it cites both and says which is newer.
+<div align="center">
+  <img src="docs/media/screenshot.png" alt="Nimbus KB answering which products support SAML 2.0 in a table, product by product, with citation chips on every row" width="600"/>
+  <br><sub>"Which of our products support SSO via SAML 2.0?", answered by Claude Sonnet 5.5 with a citation on every row.</sub>
+</div>
 
-## How it meets the brief
+---
 
-| Requirement | How |
-|---|---|
-| R1 Chat | Streamed answers over SSE, the conversation kept in the browser and sent with each question, a **New Conversation** button. |
-| R2 Grounding | The whole knowledge base (37 sections; with the rules the system prompt is about 6,400 Claude tokens) goes to the model with a stable id per section. The model cites ids inline, the server checks each one, and the cited passages appear under the answer. With no model (sources-only), a keyword ranker picks the passages. |
-| R3 Model switching | Dropdown from `src/llm/models.json` with provider name and description. Claude and Gemini are implemented, each recorded once against its live API and tested offline with fixtures. OpenAI is a placeholder. Fallback order: Claude Sonnet 5.5, Gemini 3.5 Flash-Lite, Claude Haiku 4.5, then sources-only. |
-| R4 Usage | Input and output tokens and cost on every answer, session totals in the header, priced from `models.json`. |
-| R4 Context warning | A meter in the header, amber at 75% and red at 90% of the selected model's window, each with **Start a new conversation**. History that would overflow is trimmed oldest first, with a notice. |
-| R5 Backend | Every request goes through the Hono server, which streams the reply and reports the model that actually answered, its usage and its passages. Keys stay on the server. |
-| Q1-Q6 | All six pass with cited answers, grouped per product when the question names none. |
-| E1 Follow-up without the product | The model gets the whole conversation and resolves "its" from it. |
-| E2 Not in the documents | Exactly "That isn't covered in the NimbusStack knowledge base." |
-| E3 Partly covered | Answers the covered part and names what is missing. |
-| E4 Documents disagree | Cites both and says which is newer (the Vault SAML case; see Q5 and E4 in `evals/results/latest.md`). |
-| E5 Loose wording | The model reads every section, so "single sign-on" finds SAML and "federated login". |
-| E6 One table value | Values are quoted with their row and column labels. |
-| E7 Model switch | The context meter recalculates as soon as the model changes. |
-| E8 Provider fails mid-reply | The server sends a reset, the browser drops the partial text, and the backup's answer is labelled "fallback from ...". |
-| E9 Rate limits and errors | Plain-language notices with a next step. Provider error text stays in server logs. |
-| E10 Blank message | Rejected in the browser and again on the server (400), with no provider call. |
-| Auto-fail: keys in the browser | No key ever reaches the browser. `npm run check`, which every `npm run deploy` runs first, fails if one does. The live site's keys are Worker secrets. |
-| Auto-fail: answers not from the documents | Prompt rules, server-checked citations, a "No sources cited" badge, 18 eval cases. |
-| Prompt injection | Prompt rules, untrusted rendering, a strict CSP, eval cases I1-I4. |
+Ask a model about your company's products and it will answer from memory, fluently and sometimes wrongly. Nimbus KB answers only from a fixed set of documents: here, 10 markdown files describing NimbusStack, a sample company with four products, in [`nimbusstack-knowledge-base/`](nimbusstack-knowledge-base/). Every citation is checked against the real section ids, and the cited passages are one click away. When the documents don't cover a question, it says exactly *"That isn't covered in the NimbusStack knowledge base."* When two documents disagree, it cites both and says which is newer.
 
-Everything works on the live site (model answers within the daily quota), except three things that are demoed locally: the fallback (E8, with [`FAULT_INJECT`](#demo-the-fallback), or live when a provider actually fails), the meter's amber and red states and E7 (the public site caps history, see [Known limitations](#known-limitations)), and the injection evals I1-I4.
+It is small on purpose (one Cloudflare Worker, no vector database, no RAG framework) so that the parts worth studying fit in one sitting.
 
-## Decisions
+## What it demonstrates
 
-Where I followed the brief, where I pushed back, and why. Full text in [`docs/decisions.md`](docs/decisions.md).
+### 1. Grounding you can check
 
-- [The corpus, measured](docs/decisions.md#the-corpus-measured): 10 files, 37 sections, a system prompt of about 6,400 Claude tokens. Every decision starts from that number.
-- [1. The whole knowledge base goes to the model](docs/decisions.md#1-the-whole-knowledge-base-goes-to-the-model-instead-of-retrieving-passages-first), instead of retrieving passages first. Recall is 100% by construction.
-- [2. A mid-tier model at low effort](docs/decisions.md#2-a-mid-tier-model-at-low-effort-not-a-frontier-model): Claude Sonnet 5.5, then Gemini 3.5 Flash-Lite on another provider, then Claude Haiku 4.5.
-- [3. Two providers implemented and tested](docs/decisions.md#3-two-providers-implemented-and-tested-openai-is-a-placeholder-behind-the-same-adapter), OpenAI a placeholder behind the same adapter interface.
-- [4. Keys on the public site](docs/decisions.md#4-the-public-site-has-real-keys-behind-a-password-and-a-daily-quota), and the caps that bound the spend.
-- [5. Usage export left out](docs/decisions.md#5-one-should-item-is-left-out-usage-export): a session costs fractions of a cent.
-- [6. Platform and tooling](docs/decisions.md#6-platform-and-tooling): one Cloudflare Worker, no vector database, official SDKs.
-- [7. The context-window warning is built](docs/decisions.md#7-the-context-window-warning-is-built-because-the-context-stays-small-is-an-assumption), because "the context stays small" is an assumption.
-- [8. Prompt injection and untrusted output](docs/decisions.md#8-prompt-injection-and-untrusted-output): what is defended and how.
+The model is not trusted to stay on the documents. Its citations are checked, and its behaviour is measured.
 
-## Run it locally
+- **The whole corpus goes into the prompt.** At 37 sections and about 6,400 Claude tokens, retrieval would only add a way to miss the right passage, so recall is 100% by construction ([decision 1](docs/decisions.md#1-the-whole-knowledge-base-goes-to-the-model-instead-of-retrieving-passages-first)).
+- **Citations are ids, and the server checks them.** Each section has a stable id such as `vault.md#pricing`. The model cites ids inline, [`src/llm/citations.ts`](src/llm/citations.ts) keeps only the ones that exist, and the UI shows exactly those passages under the answer. An answer that cites nothing and isn't the "not covered" line gets a **No sources cited. Check before using.** badge.
+- **The hard cases are rules, not hopes.** [`src/llm/prompt.ts`](src/llm/prompt.ts) covers follow-ups ("what about its SLA?"), partly covered questions (answer the covered part, name the gap), documents that disagree (both values, both citations, which is newer), table values (quoted with row and column) and roadmap items (never "available today").
+- **Measured, not assumed.** `npm run eval` runs 18 cases (eight product questions, six edge cases, four injection attempts) through your Claude Code login. Claude Sonnet 5.5 at low effort passes all 18, a run that would cost about $0.14 at API list prices; every answer is in [`evals/results/latest.md`](evals/results/latest.md).
 
-**Requires:** Node 24 or later. Optional: Claude Code, logged in (Claude answers through that login), an Anthropic API key, a Gemini API key.
+### 2. Resistance to prompt injection
 
-```bash
-git clone https://github.com/ujjaval-verma/nimbus-kb.git
-cd nimbus-kb
-npm install
-cp .env.example .env   # optional
-npm run dev            # open the URL Vite prints
-```
+The threat model starts from what an attacker could gain. The documents and the prompt are public, and the model has no tools, so what remains to defend is the grounding, the reader's browser, the provider keys and, when run locally, your Claude login ([decision 8](docs/decisions.md#8-prompt-injection-and-untrusted-output)).
 
-At startup the API server logs `anthropic: <choice>` and `gemini: on|off`, so you can see which providers are live.
+- **Documents and messages are information, not instructions.** Requests to ignore the rules, play a role, use outside knowledge or go off-topic get the on-topic part answered, or the exact "not covered" line.
+- **The client's history is untrusted.** The browser sends the conversation, so earlier assistant turns are not evidence, and a forged turn can't plant a fact.
+- **Model output is rendered as untrusted.** [`AnswerMarkdown`](src/web/components/AnswerMarkdown.tsx) drops raw HTML and images, and only citation chips are clickable. A strict CSP ([`src/server/security.ts`](src/server/security.ts)) blocks outside scripts, images and connections even if something slips through.
+- **Attacked on every eval run.** Cases I1 to I4 try "ignore your instructions", an off-topic question, a false claim planted in the question and a forged assistant turn.
 
-- `ANTHROPIC_API_KEY`: used by the deployed Worker. Local dev ignores it unless `ANTHROPIC_DEV_API=1`.
-- `ANTHROPIC_DEV_API`: set to `1` (with `ANTHROPIC_API_KEY`) to make `npm run dev` use the paid Anthropic API instead of your Claude Code login.
-- `GEMINI_API_KEY`: turns on Gemini 3.5 Flash-Lite, which is also the first backup when Claude fails.
-- `CLAUDE_SUBSCRIPTION`: local dev uses your Claude Code login by default. Set it to `0` if you have no login. Unless `ANTHROPIC_DEV_API=1`, Claude is then off and Gemini (or sources-only) answers. Without a login and without this setting, each question first fails on Claude before Gemini (or sources-only) answers.
-- `FAULT_INJECT`: forces a failure to demo the fallback, for example `claude-sonnet:rate_limit` or `claude-sonnet:midstream`.
+### 3. Degrading, never failing open
 
-Keys can live in `.env`, or with [direnv](https://direnv.net/) in a gitignored `.envrc` (`export GEMINI_API_KEY=...`). Even with `ANTHROPIC_API_KEY` in your shell, local dev keeps using the Claude Code login until you set `ANTHROPIC_DEV_API=1`, so a loaded key never spends money by accident.
+Every provider failure ends in a smaller answer, and no misconfiguration turns into unlimited spend.
 
-### Tests and fixtures
-
-`npm test` needs no key and no network: a setup file makes every `fetch` throw, and the adapter tests replay recorded responses from `test/fixtures/`. `direnv exec . npm run record:fixtures -- --provider anthropic|gemini` re-records them (a few cents), and only needs to run when an adapter changes. Responses that are expensive or impractical to provoke (rate limits, outages, safety blocks) are hand-written and marked `"synthetic": true`. A test fails if any fixture holds a key-shaped string or an auth header.
-
-## Demo the fallback
-
-```bash
-FAULT_INJECT=claude-sonnet:midstream npm run dev
-```
-
-Ask any question with Claude Sonnet 5.5 selected. Sonnet starts streaming, then fails mid-reply. Its partial text disappears, and the answer comes from Gemini 3.5 Flash-Lite if `GEMINI_API_KEY` is set, otherwise from Claude Haiku 4.5. The card header says "fallback from Claude Sonnet 5.5", and a notice says what went wrong. Other kinds to try: `rate_limit`, `quota`, `auth`, `unavailable`, `bad_request`.
+- **Cross-provider fallback.** Claude Sonnet 5.5, then Gemini 3.5 Flash-Lite (another provider, so an Anthropic outage doesn't take both), then Claude Haiku 4.5, then sources-only: keyword-ranked passages with no model at all. A link that gives no first token in 20 seconds, goes quiet for 30, or (on the API adapters) returns no text counts as down.
+- **No mixed replies.** If a model fails mid-answer, the server sends a reset, the browser drops the partial text, and the backup's answer is labelled "fallback from ...".
+- **One adapter interface.** Each provider is one file that streams text, reports usage and classifies errors ([`src/llm/types.ts`](src/llm/types.ts)). The chain only talks to that interface.
+- **Spend fails closed.** The Worker registers a model only when the quota is fully configured; a missing salt or an invalid limit means sources-only, never unlimited. With the caps below, a day of 300 maximum-size requests costs about $45 to $50, or about $84 if every provider is billed and then fails; the hard bound is the spend limit set at each provider ([decision 4](docs/decisions.md#4-the-public-site-has-real-keys-behind-a-password-and-a-daily-quota)).
+- **The context is never assumed small.** History is fitted to each model's window, trimming is always announced, and a meter warns at 75% and 90%.
 
 ## Architecture
 
 ```mermaid
-flowchart LR
-  B["Browser (React 19)"] -->|"POST /api/chat, SSE back"| G
-  subgraph W["Cloudflare Worker"]
-    G["https redirect + password gate"] --> S["Static assets"]
-    G --> A["Hono API: quota, fit history, prompt with all 37 sections"]
-    A --- Q[("Durable Object: today's counts")]
+flowchart TB
+  B["Browser: React 19<br/>keeps the conversation, renders output as untrusted"]
+  subgraph W["Cloudflare Worker (Hono)"]
+    G["https redirect + password gate"]
+    A["Static assets"]
+    Q["Quota<br/>burst · per visitor · site-wide"]
+    F["Fallback chain<br/>rules + all 37 sections,<br/>history fitted per model"]
+    V["Citation check against section ids"]
+    S["Sources-only<br/>keyword-ranked passages, no model"]
+    G --> A
+    G -->|"/api/chat"| Q --> F --> V
+    Q -.->|"quota used up, or no keys"| S
+    F -.->|"every model failed"| S
   end
-  A --> C1["Claude Sonnet 5.5"]
-  C1 -. fails .-> C2["Gemini 3.5 Flash-Lite"]
-  C2 -. fails .-> C3["Claude Haiku 4.5"]
-  C3 -. fails .-> SO["Sources-only: keyword-ranked passages"]
+  subgraph M["Models, tried in order"]
+    M1["1. Claude Sonnet 5.5"]
+    M2["2. Gemini 3.5 Flash-Lite"]
+    M3["3. Claude Haiku 4.5"]
+  end
+  B -->|"POST /api/chat"| G
+  F <--> M
+  V -->|"SSE: text, citations, usage"| B
+  S -->|SSE| B
 ```
 
-One Cloudflare Worker serves the React app as static assets and the Hono API under `/api/*`. Every adapter implements one interface: stream text, report usage, classify errors. Locally the same Hono app runs on Node at `127.0.0.1:8787` behind Vite, and adds the Claude Code login adapter and fault injection. The browser keeps the conversation. On the Worker, the quota's Durable Object (`QuotaCounter`) keeps only today's answer counts, keyed by a salted daily hash, and the `BURST` rate limiter allows each visitor about 3 questions per 10 seconds. The Node server has neither.
+One Worker serves the React app as static assets and the Hono API under `/api/*`. The browser holds the conversation and sends it with each question; nothing about a conversation is stored. The only server state is the quota's Durable Object, which keeps today's answer counts under a salted daily hash. Locally, the same Hono app runs on Node at `127.0.0.1:8787` behind Vite, with no gate and no quota, and adds the Claude Code login adapter and fault injection.
 
 <details>
 <summary>Source layout</summary>
@@ -133,6 +112,48 @@ test/        Vitest, mirroring src/, plus recorded fixtures in test/fixtures/
 
 </details>
 
+## Live demo
+
+**https://nimbus.ujjaval.ca** answers with Claude Sonnet 5.5, backed by Gemini 3.5 Flash-Lite. It sits behind a password, because every answer spends real API credit. To try it, [open an issue](https://github.com/ujjaval-verma/nimbus-kb/issues/new) asking for access and I'll send the password privately; any username works with it.
+
+Each visitor gets 25 model answers a day (300 site-wide), then sources-only answers until midnight UTC. Asking faster than about 3 questions per 10 seconds gets a short wait-and-retry message. Replies are capped at 3,000 tokens, and history at 60,000 bytes in at most 40 messages, the same for every model, so switching models doesn't move the context meter there; that shows only locally. If you'd rather not ask, the screenshot and the [eval results](evals/results/latest.md) show real answers.
+
+## Run it locally
+
+**Requires:** Node 24 or later. Optional: [Claude Code](https://claude.com/claude-code), logged in (Claude answers through that login), a Gemini API key, an Anthropic API key.
+
+```bash
+git clone https://github.com/ujjaval-verma/nimbus-kb.git
+cd nimbus-kb
+npm install
+cp .env.example .env   # optional
+npm run dev            # open the URL Vite prints
+```
+
+At startup the API server logs `anthropic: <choice>` and `gemini: on|off`, so you can see which providers are live. With no Gemini key and `CLAUDE_SUBSCRIPTION=0`, every answer is sources-only.
+
+| Variable | Effect |
+|---|---|
+| `GEMINI_API_KEY` | Turns on Gemini 3.5 Flash-Lite, which is also the first backup when Claude fails. |
+| `CLAUDE_SUBSCRIPTION` | Local dev uses your Claude Code login by default. Set `0` if you have none; otherwise each question first fails on Claude before the backup answers. |
+| `ANTHROPIC_DEV_API` | Set `1` (with `ANTHROPIC_API_KEY`) to use the paid Anthropic API instead of your login. Without it the key is ignored locally, so a key in your shell never spends money by accident. |
+| `ANTHROPIC_API_KEY` | Used by the deployed Worker, and locally only with `ANTHROPIC_DEV_API=1`. |
+| `FAULT_INJECT` | Forces a failure to demo the fallback, for example `claude-sonnet:midstream`. |
+
+Keys can live in `.env`, or with [direnv](https://direnv.net/) in a gitignored `.envrc`.
+
+### Demo the fallback
+
+```bash
+FAULT_INJECT=claude-sonnet:midstream npm run dev
+```
+
+Ask anything with Claude Sonnet 5.5 selected. Sonnet starts streaming, then fails. Its partial text disappears, the answer comes from Gemini (or Claude Haiku 4.5 without a Gemini key), the card says "fallback from Claude Sonnet 5.5", and a notice says what went wrong. Other kinds: `rate_limit`, `quota`, `auth`, `unavailable`, `bad_request`.
+
+### Tests
+
+`npm test` needs no key and no network: a setup file makes every `fetch` throw, and the adapter tests replay responses recorded once from the live APIs, in `test/fixtures/`. Failures that are impractical to provoke (rate limits, outages, safety blocks) are hand-written and marked `"synthetic": true`. A test fails if any fixture holds a key-shaped string or an auth header. Re-record only when an adapter changes: `direnv exec . npm run record:fixtures -- --provider anthropic|gemini` (needs that provider's key, costs a few cents). `npm run check` is the full gate: types, lint, tests, build, bundle checks and a `wrangler deploy --dry-run`.
+
 <details>
 <summary>Every script</summary>
 
@@ -145,36 +166,54 @@ test/        Vitest, mirroring src/, plus recorded fixtures in test/fixtures/
 | `npm run lint` | ESLint |
 | `npm run build` | `vite build` (client and Worker) |
 | `npm run check` | Types, lint, tests, build, bundle checks, `wrangler deploy --dry-run` |
-| `npm run eval` | Q1-Q6, edge cases and prompt-injection cases (18) against Claude, writes `evals/results/latest.md` |
-| `npm run record:fixtures` | Re-records the API fixtures (needs keys, costs a few cents) |
+| `npm run eval` | The 18 eval cases against Claude through your Claude Code login, writes `evals/results/latest.md` |
+| `npm run record:fixtures -- --provider anthropic\|gemini` | Re-records one provider's API fixtures (needs its key, costs a few cents) |
 | `npm run gen:corpus` | Regenerates `src/kb/corpus.gen.ts` from the knowledge base |
 | `npm run deploy` | `npm run check`, then `wrangler deploy` |
 | `npm run cf-typegen` | Regenerates Worker binding types |
 
 </details>
 
-## Known limitations
+## Design decisions
 
-- **The public site has a daily quota** of 25 answers per visitor and 300 site-wide (both in `wrangler.json` `vars`). Everyone behind one IP address shares a visitor's 25. Public conversations are capped at 60,000 bytes of history (about 15,000 tokens of English) in at most 40 messages, with 3,000-token replies, so the meter there never reaches amber or red, and E7 shows only locally.
-- **OpenAI is a placeholder.** It is in the dropdown, marked as such, and can't answer.
-- **Tests replay API fixtures recorded once.** A change in a provider's API shows up in the tests only when someone re-records them.
-- **Usage totals leave out failed attempts.** Tokens spent by a model that failed before the fallback answered are not counted.
-- **The sources-only keyword ranker would not scale.** It is fine for 37 sections; a large corpus would need real search.
-- **Token counts before the first reply are estimates** (characters divided by 2), as are the turns after the last reply.
-- **The browser holds the history,** so a user can edit their own past turns. That only affects their own conversation, and the prompt treats earlier assistant turns as not evidence.
+Most decisions record what was built, why, and what would make it change. Full text in [`docs/decisions.md`](docs/decisions.md).
+
+- [The corpus, measured](docs/decisions.md#the-corpus-measured): 10 files, 37 sections, a system prompt of about 6,400 Claude tokens. Every decision starts from that number.
+- [1. The whole knowledge base goes to the model](docs/decisions.md#1-the-whole-knowledge-base-goes-to-the-model-instead-of-retrieving-passages-first), instead of retrieving passages first.
+- [2. A mid-tier model at low effort](docs/decisions.md#2-a-mid-tier-model-at-low-effort-not-a-frontier-model): careful reading of 6,400 tokens doesn't need a frontier model, and latency matters more.
+- [3. Two providers, one adapter interface](docs/decisions.md#3-two-providers-implemented-and-tested-openai-is-a-placeholder-behind-the-same-adapter), recorded once and replayed offline. OpenAI is a placeholder.
+- [4. Real keys on the public site](docs/decisions.md#4-the-public-site-has-real-keys-behind-a-password-and-a-daily-quota), and the arithmetic that bounds the spend.
+- [5. Usage export left out](docs/decisions.md#5-one-should-item-is-left-out-usage-export): a session costs fractions of a cent.
+- [6. Platform and tooling](docs/decisions.md#6-platform-and-tooling): one Worker, no vector database, official SDKs.
+- [7. The context-window warning](docs/decisions.md#7-the-context-window-warning-is-built-because-the-context-stays-small-is-an-assumption), because "the context stays small" is an assumption.
+- [8. Prompt injection and untrusted output](docs/decisions.md#8-prompt-injection-and-untrusted-output): the threat model and each defence.
 
 ## Security
 
-- **Keys never reach the browser.** They reach the deployment only as Worker secrets. `scripts/check-bundles.ts` fails `npm run check` (and so every deploy) if a key name or key-shaped string is in the browser bundle, or the Claude Code login adapter is in the Worker bundle. Test fixtures are scrubbed, and a test enforces it.
-- **No quota, no model.** The Worker registers a model only when the quota is fully set up (Durable Object, burst limiter, salt, valid limits). Anything missing means sources-only, never unlimited.
-- **Spend is bounded** by the password, the per-visitor, site-wide and per-request caps, and spend limits at both providers: about a cent per question, $45 to $50 on the worst day. The arithmetic is in [decision 4](docs/decisions.md#4-the-public-site-has-real-keys-behind-a-password-and-a-daily-quota).
+- **Keys never reach the browser.** They reach the deployment only as Worker secrets. [`scripts/check-bundles.ts`](scripts/check-bundles.ts) fails `npm run check`, and so every deploy, if a key name or key-shaped string is in the browser bundle, or the Claude Code login adapter is in the Worker bundle.
 - **No IP address is stored.** A visitor is `sha256(day + QUOTA_SALT + address)`, IPv6 grouped by /64, and old days are deleted.
-- **Prompt injection:** documents and messages are information, not instructions; the model has no tools; answers render with no raw HTML, no images and no outside links, behind a strict CSP. Eval cases I1-I4 try the attacks.
-- **The local server listens on `127.0.0.1` only**, because it can spend your Claude Code login.
+- **Provider errors stay in server logs.** The browser gets plain-language notices with a next step.
+- **The local server listens on `127.0.0.1` only** and rejects other host names, because it can spend your Claude Code login. The Agent SDK it uses runs with no tools, MCP servers or local settings.
+
+## Known limitations
+
+- **OpenAI is a placeholder.** It is in the dropdown, marked as such, and can't answer.
+- **Fixtures are recorded once.** A change in a provider's API shows up in the tests only when someone re-records them.
+- **Usage totals leave out failed attempts.** Tokens spent by a model that failed before the fallback answered are not counted.
+- **Token counts before the first reply are estimates** (characters divided by 2, which overcounts on purpose), as are the turns after the last reply.
+- **The sources-only ranker would not scale.** It is fine for 37 sections; a large corpus would need real search, and a test fails if the knowledge base outgrows a quarter of the smallest model window.
+- **One IP address is one visitor** on the public site, so an office shares its 25 answers.
+- **The browser holds the history,** so a user can edit their own past turns. That only affects their own conversation.
 
 ## Deploy your own
 
 1. Edit `routes` in `wrangler.json` (it points at this site's domain).
-2. `npx wrangler secret put QUOTA_SALT` (for example `openssl rand -hex 32`), and at least one of `ANTHROPIC_API_KEY` and `GEMINI_API_KEY`.
+2. `npx wrangler secret put QUOTA_SALT` (for example `openssl rand -hex 32`), and at least one of `ANTHROPIC_API_KEY` and `GEMINI_API_KEY`. Set a spend limit at each provider; that is the hard bound on money.
 3. Optional: `npx wrangler secret put SITE_PASSWORD` puts the whole site behind HTTP Basic Auth (any username, that password; http is redirected to https first). Use a long random password, for example `openssl rand -base64 18`, since wrong guesses are not rate limited. Unset, the site is open and limited only by the quota.
 4. `npm run deploy`.
+
+The per-visitor and site-wide limits are `vars` in `wrangler.json`; the burst limit is under `ratelimits`.
+
+## License
+
+The code is [MIT](LICENSE) © Ujjaval Verma. The sample documents in [`nimbusstack-knowledge-base/`](nimbusstack-knowledge-base/), and their copy in `src/kb/corpus.gen.ts`, are sample data and are not covered by the license, nor are the quotes of them in `evals/results/` and `test/fixtures/`.

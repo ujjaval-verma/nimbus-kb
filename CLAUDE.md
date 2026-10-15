@@ -1,6 +1,6 @@
 # Nimbus KB
 
-Grounded product-knowledge chatbot over `nimbusstack-knowledge-base/`. Spec rationale for evaluators: `docs/decisions.md`.
+Grounded product-knowledge chatbot over `nimbusstack-knowledge-base/`. Design rationale: `docs/decisions.md`.
 
 ## Invariants
 1. No API key or key-shaped string in the browser bundle (`scripts/check-bundles.ts`). Keys reach the deployment only as Worker secrets, and the Worker registers a model only behind the public quota.

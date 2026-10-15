@@ -1,6 +1,6 @@
-# Decisions and pushback on the brief
+# Design decisions
 
-The brief says some parts are "left open on purpose" and that "your choices are part of what we assess". This page records where I followed the brief, where I pushed back on it from first principles, and why. Each decision says what would make me revisit it.
+The choices behind Nimbus KB, reasoned from first principles and from the size of the corpus it serves. Lines marked **Brief** quote the original requirements the project was built against; most decisions then say what was built, why, and what would make me revisit it.
 
 ## The corpus, measured
 
